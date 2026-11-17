@@ -1,0 +1,2022 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>통통 졸라맨: 흑백 점프 탈출 &amp; 도시 일상</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #fafafa;
+      color: #111111;
+      font-family: 'Noto Sans KR', sans-serif;
+    }
+    .font-jua {
+      font-family: 'Jua', sans-serif;
+    }
+    /* 손그림 잉크 느낌 테두리 & 그림자 */
+    .ink-box {
+      background: #ffffff;
+      border: 3px solid #111111;
+      box-shadow: 4px 4px 0px #111111;
+      border-radius: 16px;
+    }
+    .ink-btn {
+      background: #ffffff;
+      color: #111111;
+      border: 3px solid #111111;
+      box-shadow: 3px 3px 0px #111111;
+      border-radius: 14px;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.12s ease;
+      cursor: pointer;
+    }
+    .ink-btn:hover {
+      background: #f0f0f0;
+      transform: translate(-1px, -1px);
+      box-shadow: 4px 4px 0px #111111;
+    }
+    .ink-btn:active, .ink-btn.pressed {
+      transform: translate(3px, 3px);
+      box-shadow: 0px 0px 0px #111111;
+      background: #111111;
+      color: #ffffff;
+    }
+    .ink-btn-dark {
+      background: #111111;
+      color: #ffffff;
+      border: 3px solid #111111;
+      box-shadow: 3px 3px 0px #666666;
+      border-radius: 14px;
+      transition: transform 0.08s ease, box-shadow 0.08s ease;
+      cursor: pointer;
+    }
+    .ink-btn-dark:hover {
+      background: #262626;
+      transform: translate(-1px, -1px);
+    }
+    .ink-btn-dark:active {
+      transform: translate(2px, 2px);
+      box-shadow: 0px 0px 0px #666666;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body class="relative w-full h-full">
+
+  <!-- 메인 게임 캔버스 -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- 상단 HUD (게임 진행 중 표시) -->
+  <div id="hud" class="hidden fixed top-0 left-0 right-0 z-20 p-3 sm:p-4 flex flex-wrap items-start justify-between gap-2 pointer-events-none">
+    
+    <!-- 좌측: 현재 모드 & 체크포인트 / 도시 상태 -->
+    <div class="flex flex-col gap-2 pointer-events-auto">
+      <div class="ink-box px-3 py-2 flex items-center gap-2">
+        <span id="hudModeBadge" class="px-2.5 py-0.5 text-xs sm:text-sm font-black bg-black text-white rounded-lg">탈출맵</span>
+        <span id="hudSubInfo" class="text-xs sm:text-sm font-bold text-neutral-800">구간 1 / 6</span>
+      </div>
+
+      <!-- 자유 모드 전용 기분/상태 표시 -->
+      <div id="sandboxStats" class="hidden ink-box px-3 py-2 flex items-center gap-3 text-xs sm:text-sm font-bold">
+        <span title="포만감">🍜 <span id="statFullness">50</span>%</span>
+        <span title="기분">🎵 <span id="statMood">70</span>%</span>
+        <span id="cafeBuffBadge" class="hidden px-2 py-0.5 bg-black text-white rounded-md text-xs animate-pulse">☕ 스피드 업!</span>
+      </div>
+    </div>
+
+    <!-- 중앙: 탈출맵 전용 실시간 타이머 (분 / 초 표시) -->
+    <div id="escapeTimerBox" class="ink-box px-4 sm:px-6 py-2 flex flex-col items-center justify-center pointer-events-auto mx-auto sm:mx-0">
+      <div class="text-[11px] sm:text-xs font-bold tracking-wider text-neutral-600">⏱️ 탈출 경과 시간</div>
+      <div id="timerDisplay" class="font-jua text-xl sm:text-3xl font-black tracking-tight text-black leading-tight">
+        00분 00.0초
+      </div>
+    </div>
+
+    <!-- 우측: 컨트롤 버튼 (체크포인트 복귀, 사운드, 모드 변경) -->
+    <div class="flex items-center gap-1.5 sm:gap-2 pointer-events-auto ml-auto sm:ml-0">
+      <button id="btnResetPos" class="ink-btn px-2.5 py-2 text-xs sm:text-sm font-bold" title="체크포인트로 이동 (R)">
+        ↺ 위치초기화
+      </button>
+      <button id="btnSound" class="ink-btn px-2.5 py-2 text-xs sm:text-sm font-bold" title="효과음 켜기/끄기">
+        🔊
+      </button>
+      <button id="btnMenu" class="ink-btn-dark px-3 py-2 text-xs sm:text-sm font-bold">
+        모드선택
+      </button>
+    </div>
+  </div>
+
+  <!-- 하단 조작 안내 배너 (데스크톱용) -->
+  <div id="desktopHint" class="hidden md:flex fixed bottom-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+    <div class="bg-white/90 border-2 border-black px-4 py-1.5 rounded-full text-xs font-bold shadow-sm flex items-center gap-3">
+      <span>이동: <b>← → / A D</b></span>
+      <span>•</span>
+      <span>점프: <b>Space / W / ↑</b></span>
+      <span>•</span>
+      <span>상호작용: <b>E / F / ↓</b></span>
+      <span>•</span>
+      <span>다시시작: <b>R</b></span>
+    </div>
+  </div>
+
+  <!-- 모바일 / 터치 컨트롤러 (화면 하단) -->
+  <div id="touchControls" class="hidden fixed bottom-4 left-0 right-0 z-20 px-4 flex items-end justify-between pointer-events-none md:hidden">
+    <!-- 좌/우 이동 -->
+    <div class="flex gap-3 pointer-events-auto">
+      <button id="touchLeft" class="ink-btn w-14 h-14 flex items-center justify-center text-2xl font-black">◀</button>
+      <button id="touchRight" class="ink-btn w-14 h-14 flex items-center justify-center text-2xl font-black">▶</button>
+    </div>
+    <!-- 상호작용 & 점프 -->
+    <div class="flex gap-3 pointer-events-auto">
+      <button id="touchAction" class="ink-btn w-14 h-14 flex flex-col items-center justify-center text-xs font-black">
+        <span class="text-lg leading-none">✋</span>
+        <span>행동</span>
+      </button>
+      <button id="touchJump" class="ink-btn-dark w-16 h-16 flex flex-col items-center justify-center text-xs font-black rounded-2xl">
+        <span class="text-xl leading-none">▲</span>
+        <span>점프</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 메인 타이틀 & 모드 선택 모달 -->
+  <div id="mainMenu" class="fixed inset-0 z-30 flex items-center justify-center p-4 bg-white/85 backdrop-blur-xs">
+    <div class="ink-box max-w-xl w-full p-6 sm:p-8 flex flex-col items-center text-center relative overflow-hidden">
+      <!-- 상단 장식 배지 -->
+      <div class="px-3 py-1 border-2 border-black rounded-full text-xs font-black mb-3 bg-neutral-100">
+        BLACK &amp; WHITE 2D PLATFORMER &amp; SANDBOX
+      </div>
+
+      <!-- 캐릭터 미니 프리뷰 SVG -->
+      <div class="mb-2">
+        <svg width="88" height="88" viewBox="0 0 100 100" class="mx-auto">
+          <!-- 바닥 그림자 -->
+          <ellipse cx="50" cy="90" rx="22" ry="5" fill="#d4d4d4" />
+          <!-- 통통한 몸통 -->
+          <ellipse cx="50" cy="54" rx="18" ry="21" fill="#ffffff" stroke="#111111" stroke-width="4"/>
+          <!-- 배꼽/통통 라인 -->
+          <path d="M 42 60 Q 50 65 58 60" fill="none" stroke="#111111" stroke-width="2.5" stroke-linecap="round"/>
+          <!-- 머리 -->
+          <circle cx="50" cy="24" r="13" fill="#ffffff" stroke="#111111" stroke-width="4"/>
+          <!-- 눈 -->
+          <circle cx="46" cy="22" r="2.2" fill="#111111"/>
+          <circle cx="55" cy="22" r="2.2" fill="#111111"/>
+          <!-- 팔 -->
+          <path d="M 33 48 Q 20 40 24 30" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round"/>
+          <path d="M 67 48 Q 80 40 76 30" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round"/>
+          <!-- 다리 -->
+          <path d="M 42 73 L 38 88" fill="none" stroke="#111111" stroke-width="4.5" stroke-linecap="round"/>
+          <path d="M 58 73 L 62 88" fill="none" stroke="#111111" stroke-width="4.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <h1 class="font-jua text-3xl sm:text-4xl font-black tracking-tight mb-2">
+        통통 졸라맨의 흑백 세상
+      </h1>
+      <p class="text-sm sm:text-base text-neutral-700 font-medium mb-6 leading-relaxed">
+        통통한 배가 매력적인 졸라맨과 함께!<br>
+        신나는 <b>점프 퍼즐 탈출맵</b>에 도전하거나, <b>흑백 도시</b>에서 여유로운 일상을 즐겨보세요.
+      </p>
+
+      <!-- 2가지 모드 선택 카드 -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+        <!-- 모드 1: 점프 퍼즐 탈출맵 -->
+        <button id="startEscapeBtn" class="ink-btn p-5 flex flex-col items-center text-center group">
+          <div class="w-12 h-12 rounded-full border-2 border-black flex items-center justify-center text-2xl mb-3 bg-neutral-100 group-hover:bg-black group-hover:text-white transition-colors">
+            🏃
+          </div>
+          <div class="font-jua text-xl font-black mb-1">1. 점프 퍼즐 탈출맵</div>
+          <p class="text-xs text-neutral-600 leading-snug">
+            퀴즈 없는 직관적 기계 기믹!<br>
+            스프링·스위치·바람을 타고<br>
+            <b>최단 시간 탈출</b>에 도전하세요!
+          </p>
+        </button>
+
+        <!-- 모드 2: 자유로운 일상 시뮬레이터 -->
+        <button id="startSandboxBtn" class="ink-btn p-5 flex flex-col items-center text-center group">
+          <div class="w-12 h-12 rounded-full border-2 border-black flex items-center justify-center text-2xl mb-3 bg-neutral-100 group-hover:bg-black group-hover:text-white transition-colors">
+            🏙️
+          </div>
+          <div class="font-jua text-xl font-black mb-1">2. 자유로운 도시 일상</div>
+          <p class="text-xs text-neutral-600 leading-snug">
+            시간 제한 없이 자유롭게!<br>
+            카페, 농구, 라면 먹기, 고양이,<br>
+            옥상 파쿠르까지 마음대로!
+          </p>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 탈출 성공 축하 모달 -->
+  <div id="victoryModal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+    <div class="ink-box max-w-md w-full p-6 sm:p-8 text-center flex flex-col items-center">
+      <div class="text-5xl mb-2">🎉</div>
+      <h2 class="font-jua text-3xl font-black mb-1">탈출 성공!</h2>
+      <p class="text-sm text-neutral-600 font-bold mb-5">통통 졸라맨이 모든 점프 기믹을 돌파했습니다!</p>
+
+      <div class="w-full bg-neutral-100 border-2 border-black rounded-xl p-4 mb-6">
+        <div class="text-xs font-bold text-neutral-500 mb-1">최종 탈출 기록</div>
+        <div id="finalTimeText" class="font-jua text-3xl sm:text-4xl font-black text-black">00분 00.0초</div>
+      </div>
+
+      <button id="btnCaptureClear" class="ink-btn w-full py-3 mb-4 font-bold text-sm">
+        📸 사진 인증하며 친구에게 자랑하세요
+      </button>
+
+      <div class="flex flex-col sm:flex-row gap-3 w-full">
+        <button id="btnRetryEscape" class="ink-btn flex-1 py-3 font-bold text-sm">
+          🔄 기록 단축 재도전
+        </button>
+        <button id="btnGoSandbox" class="ink-btn-dark flex-1 py-3 font-bold text-sm">
+          🏙️ 도시 일상으로 놀러가기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * ============================================================================
+     * 1. 사운드 합성기 (Web Audio API - 외부 파일 없이 깔끔한 효과음 생성)
+     * ============================================================================
+     */
+    class SoundFX {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playTone(freqStart, freqEnd, duration, type = 'sine', vol = 0.15) {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freqStart, now);
+        if (freqEnd !== freqStart) {
+          osc.frequency.exponentialRampToValueAtTime(Math.max(20, freqEnd), now + duration);
+        }
+
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + duration);
+      }
+
+      jump() {
+        this.playTone(220, 480, 0.16, 'sine', 0.16);
+      }
+
+      spring() {
+        this.playTone(180, 760, 0.28, 'triangle', 0.2);
+      }
+
+      switchClick() {
+        this.playTone(520, 680, 0.09, 'square', 0.1);
+      }
+
+      checkpoint() {
+        this.playTone(440, 660, 0.12, 'sine', 0.15);
+        setTimeout(() => this.playTone(660, 880, 0.18, 'sine', 0.15), 90);
+      }
+
+      interact() {
+        this.playTone(380, 560, 0.14, 'triangle', 0.15);
+      }
+
+      score() {
+        this.playTone(523, 784, 0.12, 'sine', 0.18);
+        setTimeout(() => this.playTone(784, 1046, 0.22, 'sine', 0.18), 100);
+      }
+
+      victory() {
+        const notes = [523.25, 659.25, 783.99, 1046.5];
+        notes.forEach((n, idx) => {
+          setTimeout(() => this.playTone(n, n, 0.25, 'triangle', 0.18), idx * 110);
+        });
+      }
+    }
+
+    const sfx = new SoundFX();
+
+    /**
+     * ============================================================================
+     * 2. 전역 상태 및 입력 관리
+     * ============================================================================
+     */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    function resizeCanvas() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // 키보드 및 터치 입력 상태
+    const keys = {
+      left: false,
+      right: false,
+      jump: false,
+      jumpPressed: false,
+      action: false,
+      actionPressed: false
+    };
+
+    window.addEventListener('keydown', (e) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+        e.preventDefault();
+      }
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+        if (!keys.jump) keys.jumpPressed = true;
+        keys.jump = true;
+      }
+      if (e.code === 'KeyE' || e.code === 'KeyF' || e.code === 'ArrowDown' || e.code === 'KeyS') {
+        if (!keys.action) keys.actionPressed = true;
+        keys.action = true;
+      }
+      if (e.code === 'KeyR' && gameState.mode) {
+        respawnPlayer();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') keys.jump = false;
+      if (e.code === 'KeyE' || e.code === 'KeyF' || e.code === 'ArrowDown' || e.code === 'KeyS') keys.action = false;
+    });
+
+    // 모바일 터치 버튼 바인딩
+    function bindTouchButton(id, keyName, pressedName = null) {
+      const el = document.getElementById(id);
+      const start = (e) => {
+        e.preventDefault();
+        sfx.init();
+        if (pressedName && !keys[keyName]) keys[pressedName] = true;
+        keys[keyName] = true;
+        el.classList.add('pressed');
+      };
+      const end = (e) => {
+        e.preventDefault();
+        keys[keyName] = false;
+        el.classList.remove('pressed');
+      };
+      el.addEventListener('touchstart', start, { passive: false });
+      el.addEventListener('touchend', end, { passive: false });
+      el.addEventListener('touchcancel', end, { passive: false });
+      el.addEventListener('mousedown', start);
+      el.addEventListener('mouseup', end);
+      el.addEventListener('mouseleave', end);
+    }
+
+    bindTouchButton('touchLeft', 'left');
+    bindTouchButton('touchRight', 'right');
+    bindTouchButton('touchJump', 'jump', 'jumpPressed');
+    bindTouchButton('touchAction', 'action', 'actionPressed');
+
+    /**
+     * ============================================================================
+     * 3. 게임 상태, 플레이어(통통한 졸라맨), 파티클 및 말풍선
+     * ============================================================================
+     */
+    const gameState = {
+      mode: null, // 'escape' | 'sandbox'
+      escapeStartTime: 0,
+      escapeElapsedMs: 0,
+      escapeFinished: false,
+      camera: { x: 0, y: 0 },
+      particles: [],
+      floatingTexts: [],
+      // 도시 일상 모드 전용 상태
+      sandbox: {
+        fullness: 50,
+        mood: 70,
+        coffeeTimer: 0,
+        holdingItem: null, // 'coffee' | 'ramen' | null
+        danceTimer: 0,
+        sittingBench: null,
+        basketball: { x: 1120, y: 420, vx: 0, vy: 0, held: false },
+        hoop: { x: 1290, y: 330, score: 0 },
+        cat: { x: 1750, y: 520, dir: 1, happyTimer: 0 },
+        pedestrians: []
+      }
+    };
+
+    // 통통한 졸라맨 객체
+    const player = {
+      x: 120,
+      y: 400,
+      w: 34,
+      h: 62,
+      vx: 0,
+      vy: 0,
+      facing: 1, // 1: 오른쪽, -1: 왼쪽
+      grounded: false,
+      coyoteTimer: 0,
+      jumpBufferTimer: 0,
+      scaleX: 1,
+      scaleY: 1,
+      walkCycle: 0,
+      bellyBounce: 0,
+      spawnX: 120,
+      spawnY: 400,
+      checkpointIndex: 1
+    };
+
+    function spawnParticles(x, y, count = 8, style = 'dust') {
+      for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.5;
+        const speed = 1.5 + Math.random() * 3.5;
+        gameState.particles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - (style === 'note' ? 2 : 1),
+          life: 1,
+          decay: 0.02 + Math.random() * 0.02,
+          size: 3 + Math.random() * 4,
+          style // 'dust' | 'heart' | 'note' | 'star'
+        });
+      }
+    }
+
+    function addFloatingText(x, y, text) {
+      gameState.floatingTexts.push({
+        x,
+        y,
+        text,
+        life: 1.0
+      });
+    }
+
+    /**
+     * ============================================================================
+     * 4. 레벨 데이터 구성
+     * ============================================================================
+     */
+    let platforms = [];
+    let springs = [];
+    let switches = [];
+    let doors = [];
+    let crates = [];
+    let crumbleBlocks = [];
+    let windZones = [];
+    let checkpoints = [];
+    let goalPortal = null;
+    let cityInteractables = [];
+    let cityDecor = [];
+
+    // [모드 1] 점프 퍼즐 탈출맵 구축 (직관적인 기계 기믹 & 점프 위주)
+    function buildEscapeMap() {
+      platforms = [
+        // 시작 구간 (구간 1: 기본 점프 & 연속 발판)
+        { x: 0, y: 520, w: 420, h: 120 },
+        { x: 490, y: 470, w: 140, h: 24 },
+        { x: 700, y: 410, w: 140, h: 24 },
+        { x: 910, y: 350, w: 160, h: 24 },
+        { x: 1140, y: 420, w: 280, h: 120 }, // 체크포인트 1 구역
+
+        // 구간 2: 스프링 점프대 구간
+        { x: 1500, y: 420, w: 200, h: 120 },
+        { x: 1780, y: 210, w: 220, h: 28 },
+        { x: 2080, y: 320, w: 280, h: 120 }, // 체크포인트 2 구역
+
+        // 구간 3: 바닥 스위치 & 자동 다리/문 열기 (매우 쉬운 직관 퍼즐)
+        { x: 2420, y: 320, w: 340, h: 120 },
+        { x: 2920, y: 320, w: 300, h: 120 }, // 체크포인트 3 구역
+
+        // 구간 4: 상자 밀어서 높은 턱 오르기 + 스위치 누르기
+        { x: 3280, y: 320, w: 460, h: 120 },
+        { x: 3620, y: 200, w: 120, h: 120 }, // 상자 밟고 올라가는 턱
+        { x: 3820, y: 200, w: 320, h: 240 }, // 체크포인트 4 구역
+
+        // 구간 5: 사라졌다 생기는 구름 발판 & 움직이는 발판 점프 러시
+        { x: 4210, y: 200, w: 110, h: 22, moveX: 90, speed: 2.0, baseX: 4210, baseY: 200 },
+        { x: 4860, y: 180, w: 260, h: 260 }, // 체크포인트 5 구역
+
+        // 구간 6: 상승 바람 기류 & 마지막 스프링 연속 점프 -> 탈출 포탈!
+        { x: 5200, y: 260, w: 180, h: 180 },
+        { x: 5620, y: 60, w: 220, h: 26 },
+        { x: 5920, y: 160, w: 180, h: 26 },
+        { x: 6180, y: 40, w: 340, h: 300 } // 최종 골 지점
+      ];
+
+      // 스프링 발판 (통통 튀어오름)
+      springs = [
+        { x: 1620, y: 404, w: 48, h: 16, power: -17.5, anim: 0 },
+        { x: 5310, y: 244, w: 48, h: 16, power: -18.5, anim: 0 },
+        { x: 6030, y: 144, w: 48, h: 16, power: -17.0, anim: 0 }
+      ];
+
+      // 밟으면 작동하는 빨간/검은 바닥 스위치
+      switches = [
+        { id: 'sw1', x: 2560, y: 308, w: 54, h: 12, pressed: false, doorId: 'door1', holdRequired: false },
+        { id: 'sw2', x: 3920, y: 188, w: 54, h: 12, pressed: false, doorId: 'door2', holdRequired: false }
+      ];
+
+      // 스위치와 선으로 연결된 다리/문
+      doors = [
+        // sw1을 밟으면 틈새를 메우는 다리가 펼쳐짐
+        { id: 'door1', type: 'bridge', x: 2760, y: 320, w: 160, h: 22, open: false, progress: 0 },
+        // sw2를 밟으면 앞을 가로막던 철문이 위로 열림
+        { id: 'door2', type: 'gate', x: 4060, y: 70, w: 24, h: 130, open: false, progress: 0 }
+      ];
+
+      // 밀 수 있는 상자
+      crates = [
+        { x: 3420, y: 264, w: 54, h: 54, vx: 0, vy: 0 }
+      ];
+
+      // 밟으면 1초 뒤 사라졌다가 2초 뒤 복구되는 점선 발판
+      crumbleBlocks = [
+        { x: 4480, y: 190, w: 95, h: 20, state: 'solid', timer: 0 },
+        { x: 4630, y: 170, w: 95, h: 20, state: 'solid', timer: 0 },
+        { x: 4760, y: 180, w: 80, h: 20, state: 'solid', timer: 0 }
+      ];
+
+      // 상승 바람 구역
+      windZones = [
+        { x: 5420, y: -60, w: 150, h: 360, forceY: -0.95 }
+      ];
+
+      // 체크포인트 깃발
+      checkpoints = [
+        { index: 1, x: 180, y: 520, activated: true, label: '출발점' },
+        { index: 2, x: 1250, y: 420, activated: false, label: '구간 2' },
+        { index: 3, x: 2180, y: 320, activated: false, label: '구간 3' },
+        { index: 4, x: 3020, y: 320, activated: false, label: '구간 4' },
+        { index: 5, x: 3860, y: 200, activated: false, label: '구간 5' },
+        { index: 6, x: 4940, y: 180, activated: false, label: '마지막 구간' }
+      ];
+
+      // 최종 탈출 문
+      goalPortal = { x: 6380, y: -60, w: 68, h: 100 };
+
+      player.spawnX = 160;
+      player.spawnY = 440;
+      player.checkpointIndex = 1;
+      respawnPlayer(false);
+    }
+
+    // [모드 2] 자유로운 일상 시뮬레이터 (흑백 도시 샌드박스) 구축
+    function buildSandboxMap() {
+      // 넓은 도시 지면 & 건물 옥상 파쿠르 발판
+      platforms = [
+        // 메인 도시 도로 (0 ~ 3200)
+        { x: -100, y: 540, w: 3400, h: 180 },
+        // 좌측 벽 & 우측 벽
+        { x: -100, y: 0, w: 100, h: 600 },
+        { x: 3200, y: 0, w: 100, h: 600 },
+
+        // 카페 건물 발코니 & 옥상
+        { x: 260, y: 390, w: 220, h: 18 },
+        { x: 240, y: 250, w: 260, h: 20 },
+
+        // 편의점 & 라면집 옥상
+        { x: 640, y: 370, w: 240, h: 18 },
+        { x: 620, y: 220, w: 280, h: 20 },
+
+        // 농구장 백보드 발판 & 구름다리
+        { x: 1320, y: 310, w: 22, h: 130 },
+        { x: 1440, y: 380, w: 160, h: 18 },
+
+        // 고층 빌딩 옥상 파쿠르 코스 (우측)
+        { x: 2150, y: 410, w: 180, h: 18 },
+        { x: 2400, y: 320, w: 200, h: 18 },
+        { x: 2670, y: 230, w: 220, h: 20 },
+        { x: 2940, y: 150, w: 220, h: 24 }
+      ];
+
+      // 공원 트램펄린 & 옥상 점프대
+      springs = [
+        { x: 1960, y: 524, w: 56, h: 16, power: -17.5, anim: 0 },
+        { x: 2810, y: 214, w: 46, h: 16, power: -15.5, anim: 0 }
+      ];
+
+      switches = [];
+      doors = [];
+      crates = [
+        { x: 1500, y: 486, w: 52, h: 52, vx: 0, vy: 0 }
+      ];
+      crumbleBlocks = [];
+      windZones = [];
+      checkpoints = [];
+      goalPortal = null;
+
+      // 도시 배경 건물 & 가로등 장식
+      cityDecor = [
+        { type: 'building', x: 240, y: 250, w: 260, h: 290, name: '흑백 카페 ☕' },
+        { type: 'building', x: 620, y: 220, w: 280, h: 320, name: '통통 분식 & 편의점 🍜' },
+        { type: 'tree', x: 980, y: 540 },
+        { type: 'lamp', x: 550, y: 540 },
+        { type: 'lamp', x: 1620, y: 540 },
+        { type: 'building', x: 2140, y: 410, w: 200, h: 130, name: '오락실 & 음악방 🎵' },
+        { type: 'building', x: 2660, y: 230, w: 240, h: 310, name: '스카이 타워 🏙️' }
+      ];
+
+      // 도로를 천천히 오가는 시민들
+      gameState.sandbox.pedestrians = [
+        { x: 90, minX: 40, maxX: 520, speed: 0.55, dir: 1, shirt: '#111111', bag: true, phase: 0.2 },
+        { x: 590, minX: 520, maxX: 1080, speed: 0.72, dir: -1, shirt: '#777777', bag: false, phase: 1.7 },
+        { x: 1010, minX: 930, maxX: 1580, speed: 0.48, dir: 1, shirt: '#333333', bag: true, phase: 3.1 },
+        { x: 1840, minX: 1650, maxX: 2260, speed: 0.66, dir: -1, shirt: '#999999', bag: false, phase: 4.3 },
+        { x: 2360, minX: 2280, maxX: 3120, speed: 0.58, dir: 1, shirt: '#555555', bag: true, phase: 5.4 }
+      ];
+
+      // 상호작용 가능한 도시 일상 오브젝트
+      cityInteractables = [
+        {
+          id: 'cafe',
+          x: 370,
+          y: 540,
+          w: 70,
+          h: 80,
+          label: '☕ 아메리카노 마시기',
+          action: () => {
+            sfx.interact();
+            gameState.sandbox.coffeeTimer = 15; // 15초간 이동속도 & 점프력 강화
+            gameState.sandbox.holdingItem = 'coffee';
+            gameState.sandbox.mood = Math.min(100, gameState.sandbox.mood + 10);
+            spawnParticles(player.x + player.w / 2, player.y, 10, 'star');
+            addFloatingText(player.x, player.y - 25, '☕ 카페인 충전! 이동속도 UP!');
+          }
+        },
+        {
+          id: 'diner',
+          x: 760,
+          y: 540,
+          w: 80,
+          h: 80,
+          label: '🍜 따끈한 라면 먹기',
+          action: () => {
+            sfx.interact();
+            gameState.sandbox.fullness = Math.min(100, gameState.sandbox.fullness + 30);
+            gameState.sandbox.mood = Math.min(100, gameState.sandbox.mood + 15);
+            gameState.sandbox.holdingItem = 'ramen';
+            player.bellyBounce = 1.0;
+            spawnParticles(player.x + player.w / 2, player.y, 10, 'heart');
+            addFloatingText(player.x, player.y - 25, '🍜 후루룩! 배가 더 통통해졌다!');
+          }
+        },
+        {
+          id: 'basketball',
+          x: 1120,
+          y: 540,
+          w: 90,
+          h: 80,
+          label: '🏀 농구공 줍기 / 슛!',
+          action: () => {
+            const ball = gameState.sandbox.basketball;
+            if (!ball.held) {
+              ball.held = true;
+              sfx.switchClick();
+              addFloatingText(player.x, player.y - 25, '🏀 공 잡았다! 한번 더 누르면 슛!');
+            } else {
+              ball.held = false;
+              sfx.jump();
+              // 골대 방향으로 포물선 슛
+              ball.x = player.x + player.w / 2;
+              ball.y = player.y;
+              ball.vx = 7.8;
+              ball.vy = -13.2;
+              addFloatingText(player.x, player.y - 25, '슛~!');
+            }
+          }
+        },
+        {
+          id: 'bench',
+          x: 1580,
+          y: 540,
+          w: 75,
+          h: 50,
+          label: '🪑 벤치에 앉아 쉬기',
+          action: () => {
+            sfx.switchClick();
+            if (gameState.sandbox.sittingBench) {
+              gameState.sandbox.sittingBench = null;
+              addFloatingText(player.x, player.y - 20, '개운하다!');
+            } else {
+              gameState.sandbox.sittingBench = 1580;
+              player.x = 1564;
+              player.vx = 0;
+              gameState.sandbox.mood = Math.min(100, gameState.sandbox.mood + 10);
+              addFloatingText(player.x, player.y - 25, '여유로운 휴식 중...');
+            }
+          }
+        },
+        {
+          id: 'cat',
+          x: 1750,
+          y: 540,
+          w: 70,
+          h: 50,
+          label: '🐈 길고양이 쓰다듬기',
+          action: () => {
+            sfx.checkpoint();
+            gameState.sandbox.cat.happyTimer = 3.0;
+            gameState.sandbox.mood = Math.min(100, gameState.sandbox.mood + 20);
+            spawnParticles(gameState.sandbox.cat.x, gameState.sandbox.cat.y - 15, 8, 'heart');
+            addFloatingText(gameState.sandbox.cat.x - 20, gameState.sandbox.cat.y - 35, '야옹~ 골골골 ♥');
+          }
+        },
+        {
+          id: 'boombox',
+          x: 2240,
+          y: 540,
+          w: 80,
+          h: 60,
+          label: '📻 거리 댄스 타임!',
+          action: () => {
+            sfx.victory();
+            gameState.sandbox.danceTimer = 4.0;
+            gameState.sandbox.mood = Math.min(100, gameState.sandbox.mood + 25);
+            spawnParticles(player.x + player.w / 2, player.y, 12, 'note');
+            addFloatingText(player.x, player.y - 25, '🎵 신나는 통통 댄스!');
+          }
+        }
+      ];
+
+      gameState.sandbox.basketball = { x: 1120, y: 526, vx: 0, vy: 0, held: false };
+      gameState.sandbox.hoop = { x: 1295, y: 345, score: 0 };
+      gameState.sandbox.cat = { x: 1750, y: 540, dir: 1, happyTimer: 0 };
+      gameState.sandbox.sittingBench = null;
+      gameState.sandbox.danceTimer = 0;
+
+      player.spawnX = 140;
+      player.spawnY = 460;
+      respawnPlayer(false);
+    }
+
+    function respawnPlayer(playSound = true) {
+      player.x = player.spawnX;
+      player.y = player.spawnY;
+      player.vx = 0;
+      player.vy = 0;
+      player.scaleX = 1.25;
+      player.scaleY = 0.78;
+      if (playSound) sfx.switchClick();
+      spawnParticles(player.x + player.w / 2, player.y + player.h / 2, 10, 'dust');
+    }
+
+    /**
+     * ============================================================================
+     * 5. 물리 충돌 & 업데이트 로직
+     * ============================================================================
+     */
+    function aabb(a, b) {
+      return (
+        a.x < b.x + b.w &&
+        a.x + a.w > b.x &&
+        a.y < b.y + b.h &&
+        a.y + a.h > b.y
+      );
+    }
+
+    function formatEscapeTime(ms) {
+      const totalSeconds = Math.max(0, ms / 1000);
+      const mins = Math.floor(totalSeconds / 60);
+      const secs = (totalSeconds % 60).toFixed(1).padStart(4, '0');
+      const minStr = String(mins).padStart(2, '0');
+      return `${minStr}분 ${secs}초`;
+    }
+
+    function update(dt) {
+      if (!gameState.mode) return;
+
+      // 탈출맵 타이머 갱신
+      if (gameState.mode === 'escape' && !gameState.escapeFinished) {
+        gameState.escapeElapsedMs = performance.now() - gameState.escapeStartTime;
+        document.getElementById('timerDisplay').textContent = formatEscapeTime(gameState.escapeElapsedMs);
+      }
+
+      // 1) 움직이는 발판 업데이트
+      for (const p of platforms) {
+        if (p.moveX) {
+          const prevX = p.x;
+          p.x = p.baseX + Math.sin(performance.now() * 0.002 * p.speed) * p.moveX;
+          p.dx = p.x - prevX;
+        } else {
+          p.dx = 0;
+        }
+      }
+
+      // 2) 사라졌다 생기는 발판 업데이트
+      for (const cb of crumbleBlocks) {
+        if (cb.state === 'shaking') {
+          cb.timer -= dt;
+          if (cb.timer <= 0) {
+            cb.state = 'gone';
+            cb.timer = 2.2; // 2.2초 뒤 다시 생성
+            spawnParticles(cb.x + cb.w / 2, cb.y + cb.h / 2, 6, 'dust');
+          }
+        } else if (cb.state === 'gone') {
+          cb.timer -= dt;
+          if (cb.timer <= 0) {
+            cb.state = 'solid';
+          }
+        }
+      }
+
+      // 3) 스프링 애니메이션 감쇠
+      for (const sp of springs) {
+        if (sp.anim > 0) sp.anim = Math.max(0, sp.anim - dt * 4);
+      }
+
+      // 4) 자유 모드 타이머 & 고양이/농구공 물리 업데이트
+      if (gameState.mode === 'sandbox') {
+        if (gameState.sandbox.coffeeTimer > 0) {
+          gameState.sandbox.coffeeTimer = Math.max(0, gameState.sandbox.coffeeTimer - dt);
+          document.getElementById('cafeBuffBadge').classList.remove('hidden');
+        } else {
+          document.getElementById('cafeBuffBadge').classList.add('hidden');
+          if (gameState.sandbox.holdingItem === 'coffee') gameState.sandbox.holdingItem = null;
+        }
+
+        if (gameState.sandbox.danceTimer > 0) {
+          gameState.sandbox.danceTimer = Math.max(0, gameState.sandbox.danceTimer - dt);
+          if (Math.random() < 0.15) {
+            spawnParticles(player.x + player.w / 2, player.y, 1, 'note');
+          }
+        }
+
+        // 도로를 산책하는 시민들
+        for (const npc of gameState.sandbox.pedestrians) {
+          npc.x += npc.speed * npc.dir;
+          if (npc.x >= npc.maxX) { npc.x = npc.maxX; npc.dir = -1; }
+          if (npc.x <= npc.minX) { npc.x = npc.minX; npc.dir = 1; }
+          npc.phase += dt * 7;
+        }
+
+        const cat = gameState.sandbox.cat;
+        if (cat.happyTimer > 0) {
+          cat.happyTimer = Math.max(0, cat.happyTimer - dt);
+        } else {
+          cat.x += cat.dir * 0.7;
+          if (cat.x > 1880) cat.dir = -1;
+          if (cat.x < 1680) cat.dir = 1;
+        }
+
+        // 농구공 물리
+        const ball = gameState.sandbox.basketball;
+        const hoop = gameState.sandbox.hoop;
+        if (ball.held) {
+          ball.x = player.x + (player.facing === 1 ? player.w + 4 : -14);
+          ball.y = player.y + 24 + Math.sin(performance.now() * 0.015) * 6;
+          ball.vx = 0;
+          ball.vy = 0;
+        } else {
+          ball.vy += 0.55;
+          ball.x += ball.vx;
+          ball.y += ball.vy;
+          ball.vx *= 0.99;
+
+          // 바닥 바운스
+          if (ball.y + 12 > 540) {
+            ball.y = 528;
+            ball.vy = -ball.vy * 0.72;
+            ball.vx *= 0.85;
+            if (Math.abs(ball.vy) < 1) ball.vy = 0;
+          }
+          // 백보드 충돌
+          if (ball.x + 12 > 1320 && ball.x - 12 < 1342 && ball.y > 310 && ball.y < 440) {
+            ball.vx = -Math.abs(ball.vx) * 0.7;
+            ball.x = 1308;
+          }
+          // 골대 림 통과 판정
+          if (Math.abs(ball.x - hoop.x) < 20 && Math.abs(ball.y - hoop.y) < 14 && ball.vy > 0) {
+            hoop.score += 1;
+            sfx.score();
+            gameState.sandbox.mood = Math.min(100, gameState.sandbox.mood + 15);
+            spawnParticles(hoop.x, hoop.y, 12, 'star');
+            addFloatingText(hoop.x - 20, hoop.y - 30, `🏀 나이스 슛! (${hoop.score}골)`);
+            ball.vy = 2.5;
+            ball.vx = 0;
+          }
+        }
+
+        // UI 수치 동기화
+        document.getElementById('statFullness').textContent = Math.round(gameState.sandbox.fullness);
+        document.getElementById('statMood').textContent = Math.round(gameState.sandbox.mood);
+      }
+
+      // 벤치에 앉아있을 때 이동 키 누르면 자동 기상
+      if (gameState.sandbox.sittingBench && (keys.left || keys.right || keys.jumpPressed)) {
+        gameState.sandbox.sittingBench = null;
+      }
+
+      // 5) 플레이어 이동 & 점프 물리
+      const speedMult = (gameState.mode === 'sandbox' && gameState.sandbox.coffeeTimer > 0) ? 1.45 : 1.0;
+      const moveAccel = 0.85 * speedMult;
+      const maxSpeed = 5.4 * speedMult;
+      const gravity = 0.62;
+      const jumpPower = -12.4 * (speedMult > 1 ? 1.1 : 1.0);
+
+      if (!gameState.sandbox.sittingBench) {
+        if (keys.left) {
+          player.vx -= moveAccel;
+          player.facing = -1;
+        }
+        if (keys.right) {
+          player.vx += moveAccel;
+          player.facing = 1;
+        }
+        if (!keys.left && !keys.right) {
+          player.vx *= 0.78;
+          if (Math.abs(player.vx) < 0.1) player.vx = 0;
+        }
+        player.vx = Math.max(-maxSpeed, Math.min(maxSpeed, player.vx));
+      }
+
+      // 코요테 타임 & 점프 버퍼 (조작감을 매우 부드럽게 만듦)
+      if (player.grounded) {
+        player.coyoteTimer = 0.12;
+      } else {
+        player.coyoteTimer = Math.max(0, player.coyoteTimer - dt);
+      }
+
+      if (keys.jumpPressed) {
+        player.jumpBufferTimer = 0.12;
+      } else {
+        player.jumpBufferTimer = Math.max(0, player.jumpBufferTimer - dt);
+      }
+
+      if (player.jumpBufferTimer > 0 && player.coyoteTimer > 0) {
+        player.vy = jumpPower;
+        player.grounded = false;
+        player.coyoteTimer = 0;
+        player.jumpBufferTimer = 0;
+        player.scaleX = 0.76;
+        player.scaleY = 1.28;
+        sfx.jump();
+        spawnParticles(player.x + player.w / 2, player.y + player.h, 6, 'dust');
+      }
+
+      // 바람 구역 상승 기류 적용
+      let inWind = false;
+      for (const wz of windZones) {
+        if (aabb(player, wz)) {
+          player.vy += wz.forceY;
+          player.vy = Math.max(-10, player.vy);
+          inWind = true;
+        }
+      }
+
+      if (!inWind) {
+        player.vy += gravity;
+        player.vy = Math.min(18, player.vy);
+      }
+
+      // 6) 상자 물리 & 밀기
+      for (const c of crates) {
+        c.vy += gravity;
+        c.x += c.vx;
+        c.vx *= 0.8;
+        c.y += c.vy;
+
+        // 상자 지면 충돌
+        for (const p of platforms) {
+          if (aabb(c, p)) {
+            if (c.vy > 0 && c.y + c.h - c.vy <= p.y + 10) {
+              c.y = p.y - c.h;
+              c.vy = 0;
+            }
+          }
+        }
+      }
+
+      // 7) 플레이어 X축 이동 및 충돌
+      player.x += player.vx;
+
+      // 상자 밀기 처리
+      for (const c of crates) {
+        if (aabb(player, c)) {
+          // 위에서 밟은 게 아니라 옆에서 밀 때
+          if (player.y + player.h > c.y + 10) {
+            if (player.vx > 0 && player.x < c.x) {
+              c.x = player.x + player.w;
+              c.vx = player.vx * 0.9;
+            } else if (player.vx < 0 && player.x > c.x) {
+              c.x = player.x - c.w;
+              c.vx = player.vx * 0.9;
+            }
+          }
+        }
+      }
+
+      // 닫힌 문(gate) X축 충돌
+      for (const d of doors) {
+        if (d.type === 'gate' && d.progress < 0.85 && aabb(player, d)) {
+          if (player.vx > 0) player.x = d.x - player.w;
+          else if (player.vx < 0) player.x = d.x + d.w;
+          player.vx = 0;
+        }
+      }
+
+      // 일반 지형 X축 충돌
+      for (const p of platforms) {
+        if (aabb(player, p)) {
+          if (player.vx > 0) player.x = p.x - player.w;
+          else if (player.vx < 0) player.x = p.x + p.w;
+          player.vx = 0;
+        }
+      }
+
+      // 8) 플레이어 Y축 이동 및 착지 판정
+      const wasGrounded = player.grounded;
+      player.y += player.vy;
+      player.grounded = false;
+
+      // 일반 발판 Y축 충돌
+      for (const p of platforms) {
+        if (aabb(player, p)) {
+          if (player.vy > 0) {
+            player.y = p.y - player.h;
+            if (!wasGrounded && player.vy > 4) {
+              player.scaleX = 1.24;
+              player.scaleY = 0.78;
+              player.bellyBounce = 1.0;
+              spawnParticles(player.x + player.w / 2, player.y + player.h, 5, 'dust');
+            }
+            player.vy = 0;
+            player.grounded = true;
+            // 움직이는 발판 탑승 시 같이 이동
+            if (p.dx) player.x += p.dx;
+          } else if (player.vy < 0) {
+            player.y = p.y + p.h;
+            player.vy = 0;
+          }
+        }
+      }
+
+      // 상자 위에 올라타기
+      for (const c of crates) {
+        if (aabb(player, c) && player.vy >= 0 && player.y + player.h - player.vy <= c.y + 12) {
+          player.y = c.y - player.h;
+          player.vy = 0;
+          player.grounded = true;
+        }
+      }
+
+      // 사라지는 발판 위 착지
+      for (const cb of crumbleBlocks) {
+        if (cb.state !== 'gone' && aabb(player, cb) && player.vy >= 0 && player.y + player.h - player.vy <= cb.y + 12) {
+          player.y = cb.y - player.h;
+          player.vy = 0;
+          player.grounded = true;
+          if (cb.state === 'solid') {
+            cb.state = 'shaking';
+            cb.timer = 0.85;
+            sfx.switchClick();
+          }
+        }
+      }
+
+      // 펼쳐진 다리(bridge) 위 착지
+      for (const d of doors) {
+        if (d.type === 'bridge' && d.progress > 0.5) {
+          const activeBridge = { x: d.x, y: d.y, w: d.w * d.progress, h: d.h };
+          if (aabb(player, activeBridge) && player.vy >= 0 && player.y + player.h - player.vy <= d.y + 14) {
+            player.y = d.y - player.h;
+            player.vy = 0;
+            player.grounded = true;
+          }
+        }
+      }
+
+      // 9) 스프링 발판 밟기
+      for (const sp of springs) {
+        if (aabb(player, sp) && player.vy >= 0) {
+          player.y = sp.y - player.h;
+          player.vy = sp.power;
+          player.grounded = false;
+          player.scaleX = 0.7;
+          player.scaleY = 1.35;
+          sp.anim = 1.0;
+          sfx.spring();
+          spawnParticles(sp.x + sp.w / 2, sp.y, 10, 'star');
+        }
+      }
+
+      // 10) 스위치 & 문 작동
+      for (const sw of switches) {
+        const playerOn = aabb(player, { x: sw.x, y: sw.y - 6, w: sw.w, h: sw.h + 8 });
+        const crateOn = crates.some(c => aabb(c, { x: sw.x, y: sw.y - 6, w: sw.w, h: sw.h + 8 }));
+        if ((playerOn || crateOn) && !sw.pressed) {
+          sw.pressed = true;
+          sfx.switchClick();
+          addFloatingText(sw.x - 10, sw.y - 25, '딸깍! 길 열림!');
+        }
+        const targetDoor = doors.find(d => d.id === sw.doorId);
+        if (targetDoor && sw.pressed) {
+          targetDoor.open = true;
+        }
+      }
+
+      for (const d of doors) {
+        if (d.open && d.progress < 1) {
+          d.progress = Math.min(1, d.progress + dt * 2.2);
+        }
+      }
+
+      // 11) 체크포인트 & 탈출 포탈 판정 (탈출 모드)
+      if (gameState.mode === 'escape') {
+        for (const cp of checkpoints) {
+          if (!cp.activated && Math.abs(player.x - cp.x) < 45 && Math.abs((player.y + player.h) - cp.y) < 60) {
+            cp.activated = true;
+            player.spawnX = cp.x - player.w / 2;
+            player.spawnY = cp.y - player.h - 4;
+            player.checkpointIndex = cp.index;
+            document.getElementById('hudSubInfo').textContent = `구간 ${cp.index} / ${checkpoints.length}`;
+            sfx.checkpoint();
+            spawnParticles(cp.x, cp.y - 40, 12, 'star');
+            addFloatingText(cp.x - 30, cp.y - 65, `🚩 ${cp.label} 저장!`);
+          }
+        }
+
+        // 낙사 시 최근 체크포인트 복귀
+        if (player.y > 750) {
+          respawnPlayer(true);
+          addFloatingText(player.x, player.y - 25, '앗! 다시 점프!');
+        }
+
+        // 최종 탈출 골인!
+        if (goalPortal && !gameState.escapeFinished && aabb(player, goalPortal)) {
+          gameState.escapeFinished = true;
+          sfx.victory();
+          spawnParticles(goalPortal.x + 34, goalPortal.y + 50, 25, 'star');
+          document.getElementById('finalTimeText').textContent = formatEscapeTime(gameState.escapeElapsedMs);
+          setTimeout(() => {
+            document.getElementById('victoryModal').classList.remove('hidden');
+          }, 400);
+        }
+      }
+
+      // 12) 도시 일상 상호작용 키 처리
+      if (gameState.mode === 'sandbox' && keys.actionPressed) {
+        for (const item of cityInteractables) {
+          if (Math.abs((player.x + player.w / 2) - item.x) < item.w * 0.8 && Math.abs((player.y + player.h) - item.y) < 90) {
+            item.action();
+            break;
+          }
+        }
+      }
+
+      // 13) 캐릭터 애니메이션 보간 (스쿼시 & 스트레치, 걷기, 통통한 배 흔들림)
+      player.scaleX += (1 - player.scaleX) * 0.18;
+      player.scaleY += (1 - player.scaleY) * 0.18;
+      player.bellyBounce = Math.max(0, player.bellyBounce - dt * 2.5);
+
+      if (Math.abs(player.vx) > 0.3 && player.grounded) {
+        player.walkCycle += Math.abs(player.vx) * 0.065;
+      } else {
+        player.walkCycle = 0;
+      }
+
+      // 14) 파티클 & 플로팅 텍스트 업데이트
+      for (let i = gameState.particles.length - 1; i >= 0; i--) {
+        const pt = gameState.particles[i];
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+        pt.life -= pt.decay;
+        if (pt.life <= 0) gameState.particles.splice(i, 1);
+      }
+
+      for (let i = gameState.floatingTexts.length - 1; i >= 0; i--) {
+        const ft = gameState.floatingTexts[i];
+        ft.y -= 0.7;
+        ft.life -= 0.015;
+        if (ft.life <= 0) gameState.floatingTexts.splice(i, 1);
+      }
+
+      // 15) 부드러운 카메라 추적
+      const targetCamX = player.x + player.w / 2 - width * 0.42;
+      const targetCamY = player.y + player.h / 2 - height * 0.56;
+      gameState.camera.x += (targetCamX - gameState.camera.x) * 0.1;
+      gameState.camera.y += (targetCamY - gameState.camera.y) * 0.08;
+
+      if (gameState.mode === 'sandbox') {
+        gameState.camera.x = Math.max(-40, Math.min(3240 - width, gameState.camera.x));
+        gameState.camera.y = Math.max(-120, Math.min(140, gameState.camera.y));
+      }
+
+      // 1회성 입력 플래그 초기화
+      keys.jumpPressed = false;
+      keys.actionPressed = false;
+    }
+
+    /**
+     * ============================================================================
+     * 6. 흑백 잉크/스케치 스타일 렌더링
+     * ============================================================================
+     */
+    function drawBackground() {
+      // 종이 질감의 깔끔한 오프화이트 배경
+      ctx.fillStyle = '#fcfcfc';
+      ctx.fillRect(0, 0, width, height);
+
+      // 은은한 흑백 모눈/노트 선 배경 (시차 스크롤)
+      ctx.strokeStyle = '#efefef';
+      ctx.lineWidth = 1;
+      const gridSize = 48;
+      const offsetX = -(gameState.camera.x * 0.25) % gridSize;
+      const offsetY = -(gameState.camera.y * 0.25) % gridSize;
+
+      ctx.beginPath();
+      for (let x = offsetX; x < width; x += gridSize) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+      }
+      for (let y = offsetY; y < height; y += gridSize) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+      }
+      ctx.stroke();
+
+      // 멀리 있는 흑백 스카이라인 / 산 실루엣 (패럴랙스)
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const skyOffset = -(gameState.camera.x * 0.12);
+      for (let i = -200; i < width + 400; i += 140) {
+        const bx = i + (skyOffset % 140);
+        const bh = 90 + ((Math.abs(Math.floor((i - skyOffset) / 140)) * 37) % 110);
+        ctx.strokeRect(bx, height - bh - 40, 110, bh + 40);
+      }
+    }
+
+    // 손그림 느낌의 흑백 블록 그리기
+    function drawInkBlock(x, y, w, h, hatched = true) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x, y, w, h);
+
+      // 빗금(해칭) 디테일
+      if (hatched && h >= 20) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+        ctx.strokeStyle = '#d4d4d4';
+        ctx.lineWidth = 1.5;
+        for (let hx = x - h; hx < x + w + h; hx += 14) {
+          ctx.beginPath();
+          ctx.moveTo(hx, y + h);
+          ctx.lineTo(hx + h, y);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // 굵은 검은 테두리
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x, y, w, h);
+
+      // 상단 잔디/잉크 강조선
+      ctx.fillStyle = '#111111';
+      ctx.fillRect(x, y, w, 5);
+    }
+
+    // 통통한 졸라맨 그리기
+    function drawChubbyStickman() {
+      const cx = player.x + player.w / 2;
+      const bottomY = player.y + player.h;
+
+      ctx.save();
+      ctx.translate(cx, bottomY);
+      ctx.scale(player.scaleX, player.scaleY);
+
+      // 바닥 그림자
+      if (player.grounded) {
+        ctx.fillStyle = 'rgba(0,0,0,0.16)';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 18, 4.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const isDancing = gameState.mode === 'sandbox' && gameState.sandbox.danceTimer > 0;
+      const isSitting = gameState.mode === 'sandbox' && gameState.sandbox.sittingBench !== null;
+      const t = performance.now() * 0.012;
+
+      const hipY = isSitting ? -16 : -20;
+      const bodyCenterY = isSitting ? -33 : -37;
+      const headCenterY = isSitting ? -55 : -59;
+
+      // 1) 다리 그리기
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 4.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (isSitting) {
+        // 벤치에 앉은 다리
+        ctx.beginPath();
+        ctx.moveTo(-6, hipY);
+        ctx.lineTo(10, hipY + 2);
+        ctx.lineTo(12, -2);
+        ctx.moveTo(6, hipY);
+        ctx.lineTo(18, hipY + 2);
+        ctx.lineTo(20, -2);
+        ctx.stroke();
+      } else {
+        const legSwing = Math.sin(player.walkCycle) * 11;
+        const leftFootY = player.grounded ? Math.min(0, -Math.cos(player.walkCycle) * 4) : -5;
+        const rightFootY = player.grounded ? Math.min(0, Math.cos(player.walkCycle) * 4) : -2;
+
+        ctx.beginPath();
+        // 왼다리
+        ctx.moveTo(-6, hipY);
+        ctx.lineTo(-6 - legSwing, leftFootY);
+        // 오른다리
+        ctx.moveTo(6, hipY);
+        ctx.lineTo(6 + legSwing, rightFootY);
+        ctx.stroke();
+      }
+
+      // 2) 통통한 배 & 몸통 (핵심 캐릭터 특징!)
+      const extraBelly = (gameState.mode === 'sandbox' ? (gameState.sandbox.fullness - 50) * 0.06 : 0)
+        + Math.sin(player.bellyBounce * Math.PI * 4) * 3;
+      const bellyRx = 15.5 + Math.max(0, extraBelly);
+      const bellyRy = 18.5;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.ellipse(player.facing * 2, bodyCenterY, bellyRx, bellyRy, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // 통통한 아랫배 볼록 강조선
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(player.facing * 4, bodyCenterY + 5, bellyRx * 0.65, 0.25 * Math.PI, 0.75 * Math.PI);
+      ctx.stroke();
+
+      // 3) 팔 그리기
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      if (isDancing) {
+        const wave = Math.sin(t) * 14;
+        ctx.moveTo(-bellyRx + 2, bodyCenterY - 4);
+        ctx.lineTo(-26, bodyCenterY - 18 + wave);
+        ctx.moveTo(bellyRx - 2, bodyCenterY - 4);
+        ctx.lineTo(26, bodyCenterY - 18 - wave);
+      } else {
+        const armSwing = Math.sin(player.walkCycle) * 12;
+        ctx.moveTo(-bellyRx + 2, bodyCenterY - 4);
+        ctx.lineTo(-bellyRx - 6 + armSwing, bodyCenterY + 11);
+        ctx.moveTo(bellyRx - 2, bodyCenterY - 4);
+        ctx.lineTo(bellyRx + 6 - armSwing, bodyCenterY + 11);
+      }
+      ctx.stroke();
+
+      // 손에 든 아이템 (커피컵 / 라면그릇)
+      if (gameState.mode === 'sandbox' && gameState.sandbox.holdingItem === 'coffee') {
+        const hx = player.facing * (bellyRx + 8);
+        const hy = bodyCenterY + 4;
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#111111';
+        ctx.lineWidth = 2;
+        ctx.fillRect(hx - 5, hy - 7, 10, 13);
+        ctx.strokeRect(hx - 5, hy - 7, 10, 13);
+        ctx.fillStyle = '#111111';
+        ctx.fillRect(hx - 6, hy - 9, 12, 3);
+      }
+
+      // 4) 동그란 머리 & 표정
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(0, headCenterY, 12.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // 눈 (바라보는 방향에 따라 살짝 이동)
+      const eyeOffsetX = player.facing * 3.5;
+      ctx.fillStyle = '#111111';
+      if (isDancing || (gameState.mode === 'sandbox' && gameState.sandbox.cat.happyTimer > 0)) {
+        // 웃는 눈 (^ ^)
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX - 3.5, headCenterY - 1, 2.5, Math.PI, 0);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX + 4.5, headCenterY - 1, 2.5, Math.PI, 0);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(eyeOffsetX - 3.5, headCenterY - 1.5, 2.1, 0, Math.PI * 2);
+        ctx.arc(eyeOffsetX + 4.5, headCenterY - 1.5, 2.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    function drawEscapeElements() {
+      // 상승 바람 구역
+      for (const wz of windZones) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
+        ctx.fillRect(wz.x, wz.y, wz.w, wz.h);
+        ctx.setLineDash([6, 6]);
+        ctx.strokeStyle = '#888888';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(wz.x, wz.y, wz.w, wz.h);
+        ctx.setLineDash([]);
+
+        // 올라가는 바람 선 애니메이션
+        const now = performance.now() * 0.25;
+        ctx.strokeStyle = '#111111';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 5; i++) {
+          const lx = wz.x + 22 + i * 28;
+          const ly = wz.y + wz.h - ((now + i * 65) % wz.h);
+          ctx.beginPath();
+          ctx.moveTo(lx, ly);
+          ctx.lineTo(lx, Math.max(wz.y, ly - 32));
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // 스위치와 문을 연결하는 점선 와이어 (퍼즐을 매우 직관적으로 보여줌)
+      for (const sw of switches) {
+        const door = doors.find(d => d.id === sw.doorId);
+        if (door) {
+          ctx.save();
+          ctx.setLineDash([5, 5]);
+          ctx.strokeStyle = sw.pressed ? '#111111' : '#888888';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(sw.x + sw.w / 2, sw.y + sw.h);
+          ctx.lineTo(sw.x + sw.w / 2, sw.y + 35);
+          ctx.lineTo(door.x + door.w / 2, sw.y + 35);
+          ctx.lineTo(door.x + door.w / 2, door.y + door.h / 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // 스위치 본체
+        const h = sw.pressed ? 5 : sw.h;
+        const y = sw.y + (sw.h - h);
+        ctx.fillStyle = sw.pressed ? '#111111' : '#ffffff';
+        ctx.strokeStyle = '#111111';
+        ctx.lineWidth = 2.5;
+        ctx.fillRect(sw.x, y, sw.w, h);
+        ctx.strokeRect(sw.x, y, sw.w, h);
+      }
+
+      // 문 / 다리 그리기
+      for (const d of doors) {
+        if (d.type === 'bridge') {
+          // 점선 가이드
+          ctx.save();
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = '#999999';
+          ctx.strokeRect(d.x, d.y, d.w, d.h);
+          ctx.restore();
+
+          if (d.progress > 0) {
+            drawInkBlock(d.x, d.y, d.w * d.progress, d.h, false);
+          }
+        } else if (d.type === 'gate') {
+          const currentH = d.h * (1 - d.progress);
+          if (currentH > 2) {
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(d.x, d.y, d.w, currentH);
+            // 창살 무늬
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(d.x + d.w / 2, d.y);
+            ctx.lineTo(d.x + d.w / 2, d.y + currentH);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // 사라졌다 생기는 발판
+      for (const cb of crumbleBlocks) {
+        if (cb.state === 'gone') {
+          ctx.save();
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = '#bbbbbb';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(cb.x, cb.y, cb.w, cb.h);
+          ctx.restore();
+        } else {
+          const shakeX = cb.state === 'shaking' ? (Math.random() - 0.5) * 5 : 0;
+          ctx.save();
+          ctx.setLineDash([6, 4]);
+          ctx.fillStyle = '#ffffff';
+          ctx.strokeStyle = '#111111';
+          ctx.lineWidth = 2.5;
+          ctx.fillRect(cb.x + shakeX, cb.y, cb.w, cb.h);
+          ctx.strokeRect(cb.x + shakeX, cb.y, cb.w, cb.h);
+          ctx.restore();
+        }
+      }
+
+      // 체크포인트 깃발
+      for (const cp of checkpoints) {
+        ctx.strokeStyle = '#111111';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(cp.x, cp.y);
+        ctx.lineTo(cp.x, cp.y - 54);
+        ctx.stroke();
+
+        // 깃발 삼각형
+        ctx.fillStyle = cp.activated ? '#111111' : '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(cp.x, cp.y - 54);
+        ctx.lineTo(cp.x + 26, cp.y - 44);
+        ctx.lineTo(cp.x, cp.y - 34);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      // 최종 탈출 문
+      if (goalPortal) {
+        const gp = goalPortal;
+        ctx.fillStyle = '#111111';
+        ctx.beginPath();
+        ctx.roundRect(gp.x, gp.y, gp.w, gp.h, [34, 34, 0, 0]);
+        ctx.fill();
+
+        // 내부 소용돌이 라인
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5;
+        const pulse = Math.sin(performance.now() * 0.006) * 4;
+        ctx.beginPath();
+        ctx.arc(gp.x + gp.w / 2, gp.y + gp.h / 2 + 6, 16 + pulse, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = '#111111';
+        ctx.font = '900 14px "Noto Sans KR"';
+        ctx.textAlign = 'center';
+        ctx.fillText('🚪 탈출구!', gp.x + gp.w / 2, gp.y - 12);
+      }
+    }
+
+    function drawSandboxElements() {
+      // 도시 건물 및 배경 시설물
+      for (const dec of cityDecor) {
+        if (dec.type === 'building') {
+          ctx.fillStyle = '#ffffff';
+          ctx.strokeStyle = '#111111';
+          ctx.lineWidth = 3;
+          ctx.fillRect(dec.x, dec.y, dec.w, dec.h);
+          ctx.strokeRect(dec.x, dec.y, dec.w, dec.h);
+
+          // 창문 격자
+          ctx.fillStyle = '#f2f2f2';
+          ctx.lineWidth = 2;
+          for (let wy = dec.y + 45; wy < dec.y + dec.h - 70; wy += 48) {
+            for (let wx = dec.x + 24; wx < dec.x + dec.w - 40; wx += 52) {
+              ctx.fillRect(wx, wy, 28, 30);
+              ctx.strokeRect(wx, wy, 28, 30);
+            }
+          }
+
+          // 간판
+          ctx.fillStyle = '#111111';
+          ctx.fillRect(dec.x + 16, dec.y + 10, dec.w - 32, 26);
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 13px "Noto Sans KR"';
+          ctx.textAlign = 'center';
+          ctx.fillText(dec.name, dec.x + dec.w / 2, dec.y + 28);
+        } else if (dec.type === 'tree') {
+          // 가로수
+          ctx.strokeStyle = '#111111';
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.moveTo(dec.x, dec.y);
+          ctx.lineTo(dec.x, dec.y - 65);
+          ctx.stroke();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(dec.x, dec.y - 85, 32, 0, Math.PI * 2);
+          ctx.arc(dec.x - 22, dec.y - 72, 22, 0, Math.PI * 2);
+          ctx.arc(dec.x + 22, dec.y - 72, 22, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        } else if (dec.type === 'lamp') {
+          ctx.strokeStyle = '#111111';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(dec.x, dec.y);
+          ctx.lineTo(dec.x, dec.y - 95);
+          ctx.lineTo(dec.x + 14, dec.y - 95);
+          ctx.stroke();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(dec.x + 14, dec.y - 90, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+
+      // 공원 벤치 그리기
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 2.5;
+      ctx.fillRect(1550, 514, 60, 8);
+      ctx.strokeRect(1550, 514, 60, 8);
+      ctx.fillRect(1550, 496, 60, 12);
+      ctx.strokeRect(1550, 496, 60, 12);
+      ctx.beginPath();
+      ctx.moveTo(1558, 522);
+      ctx.lineTo(1558, 540);
+      ctx.moveTo(1602, 522);
+      ctx.lineTo(1602, 540);
+      ctx.stroke();
+
+      // 거리 붐박스(라디오) 그리기
+      ctx.fillStyle = '#111111';
+      ctx.fillRect(2220, 512, 42, 28);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(2231, 528, 7, 0, Math.PI * 2);
+      ctx.arc(2251, 528, 7, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 농구 골대 그리기
+      const hoop = gameState.sandbox.hoop;
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(hoop.x - 18, hoop.y);
+      ctx.lineTo(hoop.x + 25, hoop.y);
+      ctx.stroke();
+      // 그물망
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(hoop.x - 15, hoop.y);
+      ctx.lineTo(hoop.x - 8, hoop.y + 24);
+      ctx.lineTo(hoop.x + 12, hoop.y + 24);
+      ctx.lineTo(hoop.x + 18, hoop.y);
+      ctx.stroke();
+
+      // 농구공 그리기
+      const ball = gameState.sandbox.basketball;
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(ball.x - 12, ball.y);
+      ctx.lineTo(ball.x + 12, ball.y);
+      ctx.moveTo(ball.x, ball.y - 12);
+      ctx.lineTo(ball.x, ball.y + 12);
+      ctx.stroke();
+
+      // 지나가는 시민: 옷차림과 걷는 보폭을 조금씩 다르게 표현
+      for (const npc of gameState.sandbox.pedestrians) {
+        ctx.save();
+        ctx.translate(npc.x, 540);
+        ctx.scale(npc.dir, 1);
+        const step = Math.sin(npc.phase) * 4;
+        ctx.strokeStyle = '#111111';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(-3, -17); ctx.lineTo(-4 + step, -2);
+        ctx.moveTo(3, -17); ctx.lineTo(4 - step, -2);
+        ctx.stroke();
+        ctx.fillStyle = npc.shirt;
+        ctx.strokeStyle = '#111111';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(-8, -37, 16, 21, 5);
+        ctx.fill(); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-8, -32); ctx.lineTo(-14, -23 + step * 0.35);
+        ctx.moveTo(8, -32); ctx.lineTo(14, -23 - step * 0.35);
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(0, -45, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#111111';
+        ctx.beginPath(); ctx.arc(2, -46, 1, 0, Math.PI * 2); ctx.fill();
+        if (npc.bag) {
+          ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#111111';
+          ctx.fillRect(-12, -32, 6, 9); ctx.strokeRect(-12, -32, 6, 9);
+        }
+        ctx.restore();
+      }
+
+      // 길고양이 그리기
+      const cat = gameState.sandbox.cat;
+      ctx.save();
+      ctx.translate(cat.x, cat.y);
+      ctx.scale(cat.dir, 1);
+      ctx.fillStyle = '#111111';
+      // 몸통 & 머리
+      ctx.beginPath();
+      ctx.ellipse(0, -8, 12, 7, 0, 0, Math.PI * 2);
+      ctx.arc(10, -14, 7, 0, Math.PI * 2);
+      ctx.fill();
+      // 귀
+      ctx.beginPath();
+      ctx.moveTo(6, -19);
+      ctx.lineTo(8, -26);
+      ctx.lineTo(12, -20);
+      ctx.moveTo(11, -20);
+      ctx.lineTo(14, -26);
+      ctx.lineTo(16, -19);
+      ctx.fill();
+      // 꼬리
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-11, -10);
+      ctx.quadraticCurveTo(-20, -22, -16, -28);
+      ctx.stroke();
+      // 눈
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(11, -15, 2, 2);
+      ctx.restore();
+
+      // 근처에 다가가면 상호작용 말풍선 프롬프트 표시
+      for (const item of cityInteractables) {
+        if (Math.abs((player.x + player.w / 2) - item.x) < item.w * 0.8 && Math.abs((player.y + player.h) - item.y) < 90) {
+          ctx.save();
+          const text = `[E / 행동] ${item.label}`;
+          ctx.font = 'bold 13px "Noto Sans KR"';
+          const tw = ctx.measureText(text).width + 20;
+          const bx = item.x - tw / 2;
+          const by = item.y - 95;
+
+          ctx.fillStyle = '#111111';
+          ctx.beginPath();
+          ctx.roundRect(bx, by, tw, 28, 8);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'center';
+          ctx.fillText(text, item.x, by + 19);
+          ctx.restore();
+        }
+      }
+    }
+
+    function render() {
+      drawBackground();
+      if (!gameState.mode) return;
+
+      ctx.save();
+      ctx.translate(-Math.round(gameState.camera.x), -Math.round(gameState.camera.y));
+
+      // 모드별 배경/기믹 요소
+      if (gameState.mode === 'sandbox') {
+        drawSandboxElements();
+      } else {
+        drawEscapeElements();
+      }
+
+      // 기본 발판 렌더링
+      for (const p of platforms) {
+        drawInkBlock(p.x, p.y, p.w, p.h, p.h >= 40);
+      }
+
+      // 스프링 점프대 렌더링
+      for (const sp of springs) {
+        const stretch = sp.anim * 12;
+        ctx.strokeStyle = '#111111';
+        ctx.lineWidth = 3;
+        // 코일 스프링 지그재그
+        ctx.beginPath();
+        ctx.moveTo(sp.x + 8, sp.y + sp.h);
+        ctx.lineTo(sp.x + sp.w - 8, sp.y + sp.h / 2 - stretch / 2);
+        ctx.lineTo(sp.x + 8, sp.y - stretch);
+        ctx.stroke();
+
+        // 상단 발판
+        ctx.fillStyle = '#111111';
+        ctx.fillRect(sp.x, sp.y - stretch - 4, sp.w, 6);
+      }
+
+      // 밀 수 있는 상자 렌더링
+      for (const c of crates) {
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#111111';
+        ctx.lineWidth = 3;
+        ctx.fillRect(c.x, c.y, c.w, c.h);
+        ctx.strokeRect(c.x, c.y, c.w, c.h);
+        // X자 나무 상자 보강대
+        ctx.beginPath();
+        ctx.moveTo(c.x, c.y);
+        ctx.lineTo(c.x + c.w, c.y + c.h);
+        ctx.moveTo(c.x + c.w, c.y);
+        ctx.lineTo(c.x, c.y + c.h);
+        ctx.stroke();
+      }
+
+      // 주인공 통통한 졸라맨 그리기
+      drawChubbyStickman();
+
+      // 파티클 그리기
+      for (const pt of gameState.particles) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, pt.life);
+        ctx.fillStyle = '#111111';
+        ctx.font = 'bold 14px sans-serif';
+        if (pt.style === 'heart') {
+          ctx.fillText('♥', pt.x, pt.y);
+        } else if (pt.style === 'note') {
+          ctx.fillText('♪', pt.x, pt.y);
+        } else if (pt.style === 'star') {
+          ctx.fillText('✦', pt.x, pt.y);
+        } else {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      // 플로팅 알림 텍스트
+      for (const ft of gameState.floatingTexts) {
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, ft.life * 1.4);
+        ctx.font = '900 14px "Noto Sans KR"';
+        ctx.fillStyle = '#111111';
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.restore();
+      }
+
+      ctx.restore();
+    }
+
+    /**
+     * ============================================================================
+     * 7. 메인 게임 루프 & UI 이벤트 연결
+     * ============================================================================
+     */
+    let lastTime = performance.now();
+    function gameLoop(now) {
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      update(dt);
+      render();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function startGameMode(mode) {
+      sfx.init();
+      sfx.switchClick();
+      gameState.mode = mode;
+      gameState.particles = [];
+      gameState.floatingTexts = [];
+
+      document.getElementById('mainMenu').classList.add('hidden');
+      document.getElementById('victoryModal').classList.add('hidden');
+      document.getElementById('hud').classList.remove('hidden');
+      document.getElementById('touchControls').classList.remove('hidden');
+
+      if (mode === 'escape') {
+        gameState.escapeStartTime = performance.now();
+        gameState.escapeElapsedMs = 0;
+        gameState.escapeFinished = false;
+        buildEscapeMap();
+
+        document.getElementById('hudModeBadge').textContent = '점프 탈출맵';
+        document.getElementById('hudSubInfo').textContent = `구간 1 / ${checkpoints.length}`;
+        document.getElementById('escapeTimerBox').classList.remove('hidden');
+        document.getElementById('sandboxStats').classList.add('hidden');
+      } else {
+        buildSandboxMap();
+
+        document.getElementById('hudModeBadge').textContent = '도시 일상';
+        document.getElementById('hudSubInfo').textContent = '자유 탐험 모드';
+        document.getElementById('escapeTimerBox').classList.add('hidden');
+        document.getElementById('sandboxStats').classList.remove('hidden');
+      }
+
+      gameState.camera.x = player.x - width * 0.4;
+      gameState.camera.y = player.y - height * 0.55;
+    }
+
+    document.getElementById('startEscapeBtn').addEventListener('click', () => startGameMode('escape'));
+    document.getElementById('startSandboxBtn').addEventListener('click', () => startGameMode('sandbox'));
+    document.getElementById('btnRetryEscape').addEventListener('click', () => startGameMode('escape'));
+    document.getElementById('btnGoSandbox').addEventListener('click', () => startGameMode('sandbox'));
+    document.getElementById('btnCaptureClear').addEventListener('click', () => {
+      const capture = document.createElement('canvas');
+      capture.width = canvas.width;
+      capture.height = canvas.height;
+      const captureCtx = capture.getContext('2d');
+      const scale = canvas.width / width;
+      captureCtx.drawImage(canvas, 0, 0);
+      captureCtx.fillStyle = 'rgba(255, 255, 255, 0.94)';
+      captureCtx.strokeStyle = '#111111';
+      captureCtx.lineWidth = 4 * scale;
+      const cardW = Math.min(440, width - 32) * scale;
+      const cardH = 170 * scale;
+      const cardX = (capture.width - cardW) / 2;
+      const cardY = (capture.height - cardH) / 2;
+      captureCtx.beginPath();
+      captureCtx.roundRect(cardX, cardY, cardW, cardH, 18 * scale);
+      captureCtx.fill();
+      captureCtx.stroke();
+      captureCtx.fillStyle = '#111111';
+      captureCtx.textAlign = 'center';
+      captureCtx.font = `900 ${30 * scale}px "Noto Sans KR", sans-serif`;
+      captureCtx.fillText('🎉 탈출 성공!', capture.width / 2, cardY + 54 * scale);
+      captureCtx.font = `700 ${16 * scale}px "Noto Sans KR", sans-serif`;
+      captureCtx.fillText('최종 기록', capture.width / 2, cardY + 91 * scale);
+      captureCtx.font = `900 ${27 * scale}px "Noto Sans KR", sans-serif`;
+      captureCtx.fillText(document.getElementById('finalTimeText').textContent, capture.width / 2, cardY + 128 * scale);
+      captureCtx.font = `700 ${13 * scale}px "Noto Sans KR", sans-serif`;
+      captureCtx.fillText('통통 졸라맨 흑백 세상 · 나의 클리어 인증', capture.width / 2, cardY + 153 * scale);
+      const link = document.createElement('a');
+      link.download = `통통졸라맨_탈출인증_${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = capture.toDataURL('image/png');
+      link.click();
+    });
+
+    document.getElementById('btnMenu').addEventListener('click', () => {
+      sfx.switchClick();
+      gameState.mode = null;
+      document.getElementById('hud').classList.add('hidden');
+      document.getElementById('touchControls').classList.add('hidden');
+      document.getElementById('victoryModal').classList.add('hidden');
+      document.getElementById('mainMenu').classList.remove('hidden');
+    });
+
+    document.getElementById('btnResetPos').addEventListener('click', () => {
+      if (gameState.mode) respawnPlayer(true);
+    });
+
+    document.getElementById('btnSound').addEventListener('click', (e) => {
+      sfx.muted = !sfx.muted;
+      e.currentTarget.textContent = sfx.muted ? '🔇' : '🔊';
+      if (!sfx.muted) sfx.switchClick();
+    });
+
+    window.onload = function () {
+      requestAnimationFrame(gameLoop);
+    };
+  </script>
+</body>
+</html>
