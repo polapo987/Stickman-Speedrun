@@ -1914,11 +1914,19 @@
      * ============================================================================
      */
     let lastTime = performance.now();
+    let simulationAccumulator = 0;
+    const FIXED_STEP = 1 / 60;
+    const SIMULATION_SPEED = 1.8;
     function gameLoop(now) {
-      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      // 물리 업데이트를 60Hz 고정 간격으로 돌려 기기별 화면 주사율 차이를 제거합니다.
+      const frameTime = Math.min(0.1, Math.max(0, (now - lastTime) / 1000));
       lastTime = now;
 
-      update(dt);
+      simulationAccumulator += frameTime * SIMULATION_SPEED;
+      while (simulationAccumulator >= FIXED_STEP) {
+        update(FIXED_STEP);
+        simulationAccumulator -= FIXED_STEP;
+      }
       render();
       requestAnimationFrame(gameLoop);
     }
