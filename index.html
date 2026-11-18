@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -78,6 +77,8 @@
       width: 100%;
       height: 100%;
     }
+    .inventory-scroll { max-height: min(70vh, 620px); overflow-y: auto; touch-action: pan-y; }
+    .accessory-card img { width: 74px; height: 62px; object-fit: contain; background: #f7f7f7; border: 1px solid #ddd; border-radius: 10px; }
   </style>
 </head>
 <body class="relative w-full h-full">
@@ -99,7 +100,7 @@
 
     <!-- 중앙: 탈출맵 전용 실시간 타이머 (분 / 초 표시) -->
     <div id="escapeTimerBox" class="ink-box px-4 sm:px-6 py-2 flex flex-col items-center justify-center pointer-events-auto mx-auto sm:mx-0">
-      <div class="text-[11px] sm:text-xs font-bold tracking-wider text-neutral-600">⏱️ 탈출 경과 시간</div>
+      <div id="timerTitle" class="text-[11px] sm:text-xs font-bold tracking-wider text-neutral-600">⏱️ 탈출 경과 시간</div>
       <div id="timerDisplay" class="font-jua text-xl sm:text-3xl font-black tracking-tight text-black leading-tight">
         00분 00.0초
       </div>
@@ -126,6 +127,8 @@
       <span>•</span>
       <span>점프: <b>Space / W / ↑</b></span>
       <span>•</span>
+      <span>공격/버튼: <b>E / F</b></span>
+      <span>•</span>
       <span>다시시작: <b>R</b></span>
     </div>
   </div>
@@ -143,12 +146,15 @@
         <span class="text-xl leading-none">▲</span>
         <span>점프</span>
       </button>
+      <button id="touchAttack" class="hidden ink-btn-dark w-16 h-16 flex flex-col items-center justify-center text-xs font-black rounded-2xl">
+        <span class="text-xl leading-none">⚔️</span><span>공격</span>
+      </button>
     </div>
   </div>
 
   <!-- 메인 타이틀 & 모드 선택 모달 -->
   <div id="mainMenu" class="fixed inset-0 z-30 flex items-center justify-center p-4 bg-white/85 backdrop-blur-xs">
-    <div class="ink-box max-w-xl w-full p-6 sm:p-8 flex flex-col items-center text-center relative overflow-hidden">
+    <div class="ink-box max-w-2xl w-full p-5 sm:p-7 flex flex-col items-center text-center relative overflow-y-auto max-h-[94vh]">
       <!-- 상단 장식 배지 -->
       <div class="px-3 py-1 border-2 border-black rounded-full text-xs font-black mb-3 bg-neutral-100">
         BLACK &amp; WHITE 2D PLATFORMER
@@ -180,19 +186,83 @@
       <h1 class="font-jua text-3xl sm:text-4xl font-black tracking-tight mb-2">
         통통 졸라맨의 흑백 세상
       </h1>
-      <p class="text-sm sm:text-base text-neutral-700 font-medium mb-4 leading-relaxed">
+      <p class="text-sm sm:text-base text-neutral-700 font-medium mb-3 leading-relaxed">
         통통한 배가 매력적인 졸라맨과 함께<br><b>점프 퍼즐 탈출맵</b>에 도전해 보세요!
       </p>
 
-      <div class="w-full mb-4">
-        <div class="font-jua font-black mb-2">플레이어 장신구</div>
-        <div id="accessoryOptions" class="grid grid-cols-2 gap-3"></div>
+      <div class="w-full grid grid-cols-3 gap-2 mb-3 text-xs sm:text-sm font-bold">
+        <div class="ink-box px-2 py-2">🏆 승리 <span id="winsText">0</span></div>
+        <div class="ink-box px-2 py-2">⚡ 최고기록 <span id="menuBestText">-</span></div>
+        <div class="ink-box px-2 py-2">🔥 챌린지 <span id="menuChallengeBestText">-</span></div>
       </div>
-      <button id="startEscapeBtn" class="ink-btn w-full p-4 flex items-center justify-center gap-3 group">
+      <div class="ink-box w-full px-3 py-2 mb-3 text-sm font-bold">착용 칭호: <span id="equippedTitleText">없음</span></div>
+      <div class="grid grid-cols-2 gap-2 w-full mb-3">
+        <button id="titleDrawBtn" class="ink-btn py-2.5 font-bold text-sm">🎲 칭호 뽑기 · 승리 2</button>
+        <button id="openInventoryBtn" class="ink-btn py-2.5 font-bold text-sm">🎒 장신구 / 칭호</button>
+        <button id="openProbabilityBtn" class="ink-btn py-2.5 font-bold text-sm col-span-2">📊 확률 안내</button>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+      <button id="startEscapeBtn" class="ink-btn p-4 flex items-center justify-center gap-3 group">
         <span class="text-2xl">🏃</span>
         <span class="text-left"><span class="block font-jua text-xl font-black">점프 퍼즐 탈출맵 시작</span>
         <span class="block text-xs text-neutral-600">스프링·스위치·바람을 타고 최단 시간 탈출!</span></span>
       </button>
+      <button id="startChallengeBtn" class="ink-btn-dark p-4 flex items-center justify-center gap-3 group">
+        <span class="text-2xl">🔥</span>
+        <span class="text-left"><span class="block font-jua text-xl font-black">7단계 챌린지 시작</span>
+        <span class="block text-xs text-neutral-300">슬라임부터 보스까지 도전!</span></span>
+      </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="inventoryModal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-3 bg-black/50">
+    <div class="ink-box max-w-3xl w-full p-4 sm:p-6 text-center">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-jua text-2xl font-black">🎒 장신구와 칭호</h2>
+        <button id="closeInventoryBtn" class="ink-btn px-3 py-1.5 font-bold">닫기</button>
+      </div>
+      <div class="flex gap-2 mb-3">
+        <button id="accessoryTabBtn" class="ink-btn-dark flex-1 py-2 font-bold">장신구</button>
+        <button id="titleTabBtn" class="ink-btn flex-1 py-2 font-bold">칭호</button>
+      </div>
+      <div id="accessoryInventory" class="inventory-scroll grid grid-cols-1 sm:grid-cols-2 gap-2 text-left"></div>
+      <div id="titleInventory" class="hidden inventory-scroll flex flex-col gap-2 text-left"></div>
+    </div>
+  </div>
+
+  <div id="probabilityModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/50">
+    <div class="ink-box max-w-3xl w-full p-4 sm:p-6 bg-white max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <h2 class="font-jua text-2xl font-black">📊 확률 안내</h2>
+        <button id="closeProbabilityBtn" class="ink-btn px-4 py-2 font-bold">닫기</button>
+      </div>
+      <section class="mb-5">
+        <h3 class="font-bold text-lg mb-2">칭호 등급 뽑기 확률</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse text-left">
+            <thead><tr class="border-b-2 border-black"><th class="p-2">등급</th><th class="p-2 text-right">확률</th></tr></thead>
+            <tbody id="titleProbabilityRows"></tbody>
+            <tfoot><tr class="border-t-2 border-black font-black"><td class="p-2">합계</td><td id="titleProbabilityTotal" class="p-2 text-right">100%</td></tr></tfoot>
+          </table>
+        </div>
+      </section>
+      <section>
+        <h3 class="font-bold text-lg mb-1">장신구 해금 조건</h3>
+        <p class="text-sm text-neutral-700 mb-3">장신구는 뽑기로 얻지 않습니다. 실제 게임 클리어 조건을 달성하면 영구 해금됩니다.</p>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div><h4 class="font-bold mb-1">빠른 클리어</h4><ul id="speedAccessoryConditions" class="list-disc pl-5 space-y-1 text-sm"></ul></div>
+          <div><h4 class="font-bold mb-1">느린 클리어 이스터 에그</h4><ul id="slowAccessoryConditions" class="list-disc pl-5 space-y-1 text-sm"></ul></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="titleResultModal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/50">
+    <div class="ink-box max-w-md w-full p-6 text-center">
+      <div class="text-4xl mb-2">🎲</div><h2 class="font-jua text-2xl font-black mb-2">칭호 뽑기</h2>
+      <div id="titleResultText" class="font-bold text-lg mb-4"></div>
+      <button id="closeTitleResultBtn" class="ink-btn-dark w-full py-3 font-bold">확인</button>
     </div>
   </div>
 
@@ -207,6 +277,7 @@
         <div class="text-xs font-bold text-neutral-500 mb-1">최종 탈출 기록</div>
         <div id="finalTimeText" class="font-jua text-3xl sm:text-4xl font-black text-black">00분 00.0초</div>
       </div>
+      <div id="unlockNotice" class="w-full text-sm font-bold mb-4"></div>
 
       <button id="btnCaptureClear" class="ink-btn w-full py-3 mb-4 font-bold text-sm">
         📸 사진 인증하며 친구에게 자랑하세요
@@ -220,6 +291,15 @@
           🏠 메뉴로
         </button>
       </div>
+    </div>
+  </div>
+
+  <div id="challengeResultModal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4 bg-black/50">
+    <div class="ink-box max-w-md w-full p-6 text-center">
+      <div class="text-5xl mb-2">🏆</div><h2 class="font-jua text-3xl font-black mb-3">CHALLENGE CLEAR!</h2>
+      <div id="challengeResultTime" class="font-jua text-2xl mb-1"></div>
+      <div id="challengeBestTime" class="font-jua text-xl mb-5"></div>
+      <button id="challengeMenuBtn" class="ink-btn-dark w-full py-3 font-bold">메뉴로</button>
     </div>
   </div>
 
@@ -334,6 +414,8 @@
       right: false,
       jump: false,
       jumpPressed: false,
+      attack: false,
+      attackPressed: false
     };
 
     window.addEventListener('keydown', (e) => {
@@ -346,6 +428,7 @@
         if (!keys.jump) keys.jumpPressed = true;
         keys.jump = true;
       }
+      if (e.code === 'KeyE' || e.code === 'KeyF') { if (!keys.attack) keys.attackPressed = true; keys.attack = true; }
       if (e.code === 'KeyR' && gameState.mode) {
         respawnPlayer();
       }
@@ -355,6 +438,7 @@
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
       if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
       if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') keys.jump = false;
+      if (e.code === 'KeyE' || e.code === 'KeyF') keys.attack = false;
     });
 
     // 모바일 터치 버튼 바인딩
@@ -383,14 +467,21 @@
     bindTouchButton('touchLeft', 'left');
     bindTouchButton('touchRight', 'right');
     bindTouchButton('touchJump', 'jump', 'jumpPressed');
+    bindTouchButton('touchAttack', 'attack', 'attackPressed');
 
     // 캔버스의 오른쪽 빈 영역은 점프 입력으로 사용합니다. UI 버튼 위 입력은 캔버스에 전달되지 않습니다.
     canvas.addEventListener('pointerdown', (e) => {
-      if (!gameState.mode || e.clientX < width / 2 || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      if (!gameState.mode || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      if (gameState.mode === 'challenge' && handleChallengePointerDown(e)) { e.preventDefault(); return; }
+      if (e.clientX < width / 2) return;
       e.preventDefault();
       sfx.init();
       keys.jumpPressed = true;
     });
+    window.addEventListener('pointermove', (e) => { if(gameState.mode==='challenge'&&gameState.challenge.draggingBox){e.preventDefault();handleChallengePointerMove(e);} }, {passive:false});
+    const stopChallengeBoxDrag = () => { if(gameState.mode==='challenge') gameState.challenge.draggingBox=null; };
+    window.addEventListener('pointerup', stopChallengeBoxDrag);
+    window.addEventListener('pointercancel', stopChallengeBoxDrag);
 
     /**
      * ============================================================================
@@ -402,53 +493,189 @@
       escapeStartTime: 0,
       escapeElapsedMs: 0,
       escapeFinished: false,
+      escapePausedAt: null,
+      escapePausedTotalMs: 0,
       camera: { x: 0, y: 0 },
       particles: [],
-      floatingTexts: []
+      floatingTexts: [],
+      challenge: { stage: 1, startTime: 0, elapsedMs: 0, stageTime: 0, slimes: [], boxes: [], switches: [], platforms: [], chaser: null, boss: null, draggingBox: null, cleared: false }
     };
 
-    // 장신구는 이 목록에 항목을 추가하면 선택 메뉴와 캐릭터 렌더링에 함께 반영됩니다.
-    const ACCESSORIES = {
-      cap: {
-        label: '🧢 장신구',
-        draw(ctx, headY) {
-          ctx.fillStyle = '#111111';
-          ctx.beginPath();
-          ctx.moveTo(-11, headY - 5);
-          ctx.quadraticCurveTo(-10, headY - 18, 0, headY - 18);
-          ctx.quadraticCurveTo(10, headY - 18, 11, headY - 5);
-          ctx.closePath();
-          ctx.fill();
-          ctx.beginPath();
-          ctx.ellipse(1, headY - 5, 14, 3, 0, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      },
-      none: { label: '장신구 없음', draw: null }
-    };
-    let selectedAccessory = 'cap';
-    const accessoryOptions = document.getElementById('accessoryOptions');
-    for (const [id, accessory] of Object.entries(ACCESSORIES)) {
-      const option = document.createElement('button');
-      option.type = 'button';
-      option.className = 'ink-btn py-3 font-bold text-sm';
-      option.textContent = accessory.label;
-      option.setAttribute('aria-pressed', String(id === selectedAccessory));
-      option.addEventListener('click', () => {
-        selectedAccessory = id;
-        for (const button of accessoryOptions.children) {
-          const selected = button === option;
-          button.setAttribute('aria-pressed', String(selected));
-          button.classList.toggle('ink-btn-dark', selected);
-          button.classList.toggle('ink-btn', !selected);
-        }
-      });
-      if (id === selectedAccessory) {
-        option.classList.remove('ink-btn');
-        option.classList.add('ink-btn-dark');
-      }
-      accessoryOptions.appendChild(option);
+    function getEscapeElapsedMs(now=performance.now()) {
+      const activeUntil=gameState.escapePausedAt===null?now:gameState.escapePausedAt;
+      return Math.max(0,activeUntil-gameState.escapeStartTime-gameState.escapePausedTotalMs);
     }
+    document.addEventListener('visibilitychange',()=>{
+      if(gameState.mode!=='escape'||gameState.escapeFinished)return;
+      const now=performance.now();
+      if(document.hidden){if(gameState.escapePausedAt===null)gameState.escapePausedAt=now;}
+      else if(gameState.escapePausedAt!==null){gameState.escapePausedTotalMs+=now-gameState.escapePausedAt;gameState.escapePausedAt=null;}
+    });
+
+    const ACCESSORY_LIST = [
+      { id:'01_beginner_crown.png', name:'초보 왕관', file:'01_beginner_crown.png', condition:'스피드런 30초 이내', group:'speed', seconds:30, anchor:'top', w:58, h:47 },
+      { id:'02_yellow_crown.png', name:'중수 노란 왕관', file:'02_yellow_crown.png', condition:'스피드런 20초 이내', group:'speed', seconds:20, anchor:'top', w:58, h:47 },
+      { id:'03_red_crown.png', name:'빠름 빨간 왕관', file:'03_red_crown.png', condition:'스피드런 18초 이내', group:'speed', seconds:18, anchor:'top', w:58, h:47 },
+      { id:'04_black_crown.png', name:'고수 검은 왕관', file:'04_black_crown.png', condition:'스피드런 13초 이내', group:'speed', seconds:13, anchor:'top', w:58, h:47 },
+      { id:'05_rainbow_crown.png', name:'무지개 왕관', file:'05_rainbow_crown.png', condition:'스피드런 11초 이내', group:'speed', seconds:11, anchor:'top', w:66, h:52 },
+      { id:'06_dinosaur_hat.png', name:'공룡 모자', file:'06_dinosaur_hat.png', condition:'스피드런 10초 이내', group:'speed', seconds:10, anchor:'top', w:72, h:58 },
+      { id:'07_silla_gold_crown.png', name:'신라시대 금관', file:'07_silla_gold_crown.png', condition:'스피드런 9.80초 이내', group:'speed', seconds:9.8, anchor:'top', w:64, h:64 },
+      { id:'08_yellow_wig.png', name:'노란 가발', file:'08_yellow_wig.png', condition:'스피드런 9.70초 이내', group:'speed', seconds:9.7, anchor:'top', w:72, h:42 },
+      { id:'09_hotpink_wig.png', name:'핫핑크 가발', file:'09_hotpink_wig.png', condition:'스피드런 9.68초 이내', group:'speed', seconds:9.68, anchor:'top', w:72, h:42 },
+      { id:'10_single_hair.png', name:'머리 한 가닥', file:'10_single_hair.png', condition:'스피드런 9초 이내', group:'speed', seconds:9, anchor:'top', w:24, h:62 },
+      { id:'11_mustache.png', name:'콧수염', file:'11_mustache.png', condition:'실제 클리어 1분 이상', group:'slow', seconds:60, anchor:'beard', w:42, h:24 },
+      { id:'12_long_beard.png', name:'긴 수염', file:'12_long_beard.png', condition:'실제 클리어 2분 이상', group:'slow', seconds:120, anchor:'beard', w:48, h:58 },
+      { id:'13_very_long_beard.png', name:'아주 긴 수염', file:'13_very_long_beard.png', condition:'실제 클리어 3분 이상', group:'slow', seconds:180, anchor:'beard', w:50, h:78 },
+      { id:'14_white_long_beard.png', name:'흰 긴 수염', file:'14_white_long_beard.png', condition:'실제 클리어 4분 이상', group:'slow', seconds:240, anchor:'beard', w:50, h:78 },
+      { id:'15_yellow_long_beard.png', name:'노란 긴 수염', file:'15_yellow_long_beard.png', condition:'실제 클리어 10분 이상', group:'slow', seconds:600, anchor:'beard', w:50, h:78 },
+      { id:'16_black_kim_beard.png', name:'검은 김수염', file:'16_black_kim_beard.png', condition:'실제 클리어 30분 이상', group:'slow', seconds:1800, anchor:'beard', w:50, h:78 },
+      { id:'17_rainbow_long_beard.png', name:'무지개 긴 수염', file:'17_rainbow_long_beard.png', condition:'실제 클리어 1시간 이상', group:'slow', seconds:3600, anchor:'beard', w:50, h:78 }
+    ];
+    const TITLE_LIST = [
+      {tier:'일반',weight:50,names:['초심자','통통한']},
+      {tier:'희귀',weight:25,names:['스피드러너','시간 단축 장인']},
+      {tier:'영웅',weight:12,names:['기록 사냥꾼','시간 삭제자']},
+      {tier:'전설',weight:7,names:['게임의 전설','터질듯한 뱃살','난 그런 사람이 아니야']},
+      {tier:'신화',weight:4,names:['김치찌개','이건 뭐지요?']},
+      {tier:'극악',weight:1.8,names:['개발자도 모름','대체 어떻게 얻었지']},
+      {tier:'????',weight:0.2,names:['빈털터리 거지의 품격 궁핍한 낭만 잔액은 없지만 자존심은 남아 초라한 인생에도 영광은 피어나고 가난한 청춘은 오늘도 품격을 지킨다']}
+    ];
+    const TITLE_BY_NAME = new Map(TITLE_LIST.flatMap(group => group.names.map(name => [name,{name,tier:group.tier}])));
+    const SAVE_KEY = 'stickman-speedrun-save-v3';
+    const DEFAULT_DATA = { wins:0, titles:[], equippedTitle:null, accessories:[], equippedAccessory:null, bestSpeedrunMs:null, challengeBestMs:null, challengeRuns:0 };
+    function freshProgress() { return { ...DEFAULT_DATA, titles:[], accessories:[] }; }
+    function loadProgress() {
+      try {
+        const saved=JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+        if(!saved||typeof saved!=='object'||Array.isArray(saved))return freshProgress();
+        const data={...freshProgress(),...saved};
+        data.titles=Array.isArray(saved.titles)?[...new Set(saved.titles.map(name=>name==='난 남자가 아니야'?'난 그런 사람이 아니야':name))]:[];
+        if(data.equippedTitle==='난 남자가 아니야')data.equippedTitle='난 그런 사람이 아니야';
+        data.accessories=Array.isArray(saved.accessories)?[...new Set(saved.accessories.filter(id=>ACCESSORY_LIST.some(item=>item.id===id)))]:[];
+        // All 17 cannot result from fewer than two speedrun wins: speed and slow-run rewards conflict.
+        // Repair just the impossible accessory grant; preserve wins, titles, and challenge records.
+        if(data.wins<2&&data.accessories.length===ACCESSORY_LIST.length)data.accessories=[];
+        if(data.equippedAccessory&&!data.accessories.includes(data.equippedAccessory))data.equippedAccessory=null;
+        return data;
+      } catch { return freshProgress(); }
+    }
+    let gameData = loadProgress();
+    function saveProgress() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(gameData)); } catch {} syncMenuStats(); }
+    const accessoryAssets = new Map();
+    function getAccessoryImage(item) {
+      if (!item) return null;
+      if (!accessoryAssets.has(item.id)) {
+        const image = new Image();
+        const asset = { image, ready:false };
+        image.onload = () => {
+          try {
+            const off = document.createElement('canvas'); off.width=image.naturalWidth; off.height=image.naturalHeight;
+            const ictx=off.getContext('2d',{willReadFrequently:true}); ictx.drawImage(image,0,0);
+            const pixels=ictx.getImageData(0,0,off.width,off.height); const {data}=pixels; const size=off.width*off.height;
+            const seen=new Uint8Array(size); const queue=new Uint32Array(size); let head=0,tail=0;
+            const push=(i)=>{if(i<0||i>=size||seen[i])return; const p=i*4; const white=data[p]>238&&data[p+1]>238&&data[p+2]>238&&Math.max(data[p],data[p+1],data[p+2])-Math.min(data[p],data[p+1],data[p+2])<16; if(white){seen[i]=1;queue[tail++]=i;}};
+            for(let x=0;x<off.width;x++){push(x);push((off.height-1)*off.width+x);} for(let y=1;y<off.height-1;y++){push(y*off.width);push(y*off.width+off.width-1);}
+            while(head<tail){const i=queue[head++],x=i%off.width; data[i*4+3]=0; if(x>0)push(i-1);if(x<off.width-1)push(i+1);if(i>=off.width)push(i-off.width);if(i+off.width<size)push(i+off.width);}
+            ictx.putImageData(pixels,0,0); asset.canvas=off;
+          } catch (error) {
+            // If pixel access is blocked (for example on a local file URL), still show the original PNG.
+            asset.canvas=image;
+          }
+          asset.ready=true;
+        };
+        image.onerror = () => { asset.canvas=null; asset.ready=true; };
+        image.src=`assets/accessories/${item.file}`; accessoryAssets.set(item.id,asset);
+      }
+      const asset=accessoryAssets.get(item.id); return asset.ready?asset.canvas:null;
+    }
+    function formatRecord(ms) { return ms == null ? '-' : `${(ms / 1000).toFixed(2)}s`; }
+    function syncMenuStats() {
+      const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};
+      set('winsText',gameData.wins); set('menuBestText',formatRecord(gameData.bestSpeedrunMs));
+      set('menuChallengeBestText',formatRecord(gameData.challengeBestMs));
+      set('equippedTitleText',gameData.equippedTitle||'없음');
+      const draw=document.getElementById('titleDrawBtn'); if(draw){draw.disabled=gameData.wins<2;draw.classList.toggle('opacity-50',draw.disabled);}
+    }
+    function makeCardButton(parent, title, detail, buttonText, onClick, options={}) {
+      const card=document.createElement('div'); card.className='accessory-card ink-box p-2 flex items-center gap-3 text-left';
+      if(options.image){const img=document.createElement('img');img.src=options.image;img.alt=title;img.loading='lazy';card.appendChild(img);}
+      const info=document.createElement('div'); info.className='flex-1 min-w-0';
+      const heading=document.createElement('div');heading.className='font-bold text-sm';heading.textContent=title;info.appendChild(heading);
+      const sub=document.createElement('div');sub.className='text-xs text-neutral-600';sub.textContent=detail;info.appendChild(sub);card.appendChild(info);
+      if(buttonText){const button=document.createElement('button');button.className=options.disabled?'ink-btn px-2 py-1 text-xs font-bold opacity-50':'ink-btn-dark px-2 py-1 text-xs font-bold';button.textContent=buttonText;button.disabled=!!options.disabled;button.addEventListener('click',onClick);card.appendChild(button);}
+      parent.appendChild(card);
+    }
+    function renderInventory() {
+      const accessories=document.getElementById('accessoryInventory'); accessories.replaceChildren();
+      makeCardButton(accessories,'없음','장신구를 착용하지 않습니다.',gameData.equippedAccessory===null?'착용 중':'착용',()=>{gameData.equippedAccessory=null;saveProgress();renderInventory();});
+      for(const item of ACCESSORY_LIST){const unlocked=gameData.accessories.includes(item.id);makeCardButton(accessories,item.name,`${item.condition} · ${unlocked?'해금':'잠김'}`,unlocked?(gameData.equippedAccessory===item.id?'착용 중':'착용'):'잠김',()=>{gameData.equippedAccessory=item.id;getAccessoryImage(item);saveProgress();renderInventory();},{image:item.group?`assets/accessories/${item.file}`:null,disabled:!unlocked||gameData.equippedAccessory===item.id});}
+      const titles=document.getElementById('titleInventory');titles.replaceChildren();
+      makeCardButton(titles,'칭호 없음','머리 위에 칭호를 표시하지 않습니다.',gameData.equippedTitle===null?'착용 중':'착용',()=>{gameData.equippedTitle=null;saveProgress();renderInventory();},{disabled:gameData.equippedTitle===null});
+      for(const name of gameData.titles){const info=TITLE_BY_NAME.get(name)||{tier:'기타'};makeCardButton(titles,`[${info.tier}] ${name}`,'획득한 칭호',gameData.equippedTitle===name?'착용 중':'착용',()=>{gameData.equippedTitle=name;saveProgress();renderInventory();},{disabled:gameData.equippedTitle===name});}
+    }
+    function openInventory(tab='accessory') { renderInventory(); document.getElementById('inventoryModal').classList.remove('hidden'); selectInventoryTab(tab); }
+    function selectInventoryTab(tab) {
+      const accessories=tab==='accessory';
+      document.getElementById('accessoryInventory').classList.toggle('hidden',!accessories);
+      document.getElementById('titleInventory').classList.toggle('hidden',accessories);
+      document.getElementById('accessoryTabBtn').className=accessories?'ink-btn-dark flex-1 py-2 font-bold':'ink-btn flex-1 py-2 font-bold';
+      document.getElementById('titleTabBtn').className=!accessories?'ink-btn-dark flex-1 py-2 font-bold':'ink-btn flex-1 py-2 font-bold';
+    }
+    function renderProbabilityInfo() {
+      const rows=document.getElementById('titleProbabilityRows');rows.replaceChildren();
+      for(const tier of TITLE_LIST){
+        const row=document.createElement('tr');row.className='border-b border-neutral-200';
+        const name=document.createElement('td');name.className='p-2';name.textContent=tier.tier;
+        const chance=document.createElement('td');chance.className='p-2 text-right';chance.textContent=`${tier.weight}%`;
+        row.append(name,chance);rows.appendChild(row);
+      }
+      const total=TITLE_LIST.reduce((sum,tier)=>sum+tier.weight,0);
+      document.getElementById('titleProbabilityTotal').textContent=`${total}%`;
+      for(const [group,id] of [['speed','speedAccessoryConditions'],['slow','slowAccessoryConditions']]){
+        const list=document.getElementById(id);list.replaceChildren();
+        for(const item of ACCESSORY_LIST.filter(accessory=>accessory.group===group)){
+          const row=document.createElement('li');row.textContent=`${item.condition} → ${item.name} (${item.file})`;list.appendChild(row);
+        }
+      }
+    }
+    function drawTitle() {
+      if(!gameData.equippedTitle)return;
+      const x=player.x+player.w/2;ctx.save();ctx.font='bold 10px "Noto Sans KR"';
+      const words=gameData.equippedTitle.split(/\s+/),lines=[];let line='';
+      for(const word of words){const next=line?`${line} ${word}`:word;if(ctx.measureText(next).width>210&&line){lines.push(line);line=word;}else line=next;}if(line)lines.push(line);
+      const lineHeight=12,pad=8,boxW=Math.min(226,Math.max(...lines.map(v=>ctx.measureText(v).width))+pad*2),boxH=lines.length*lineHeight+pad*2;
+      let titleBottom=player.y-8;
+      const equipped=ACCESSORY_LIST.find(item=>item.id===gameData.equippedAccessory);
+      if(equipped){
+        const accessoryY=equipped.anchor==='beard'
+          ? -59+(equipped.id.startsWith('11_')?2:8)
+          : -59-equipped.h+6;
+        const accessoryTop=player.y+player.h+accessoryY*Math.max(0,player.scaleY||1);
+        titleBottom=Math.min(titleBottom,accessoryTop-8);
+      }
+      const boxX=x-boxW/2,boxY=titleBottom-boxH;
+      ctx.fillStyle='rgba(255,255,255,0.96)';ctx.strokeStyle='#111111';ctx.lineWidth=2;
+      ctx.beginPath();ctx.roundRect(boxX,boxY,boxW,boxH,7);ctx.fill();ctx.stroke();ctx.fillStyle='#111111';ctx.textAlign='center';
+      lines.forEach((text,index)=>ctx.fillText(text,x,boxY+pad+10+index*lineHeight));ctx.restore();
+    }
+    function rollTitle() {
+      const result=document.getElementById('titleResultText');
+      if(gameData.wins<2){result.textContent='칭호 뽑기에는 승리 2가 필요합니다.';document.getElementById('titleResultModal').classList.remove('hidden');return;}
+      gameData.wins-=2;const total=TITLE_LIST.reduce((sum,t)=>sum+t.weight,0);let roll=Math.random()*total;let tier=TITLE_LIST.at(-1);
+      for(const candidate of TITLE_LIST){roll-=candidate.weight;if(roll<0){tier=candidate;break;}}
+      const name=tier.names[Math.floor(Math.random()*tier.names.length)];
+      if(gameData.titles.includes(name)){gameData.wins+=1;result.textContent=`[${tier.tier}] ${name} 중복! 보상으로 승리 1을 돌려받았습니다.`;}
+      else{gameData.titles.push(name);result.textContent=`[${tier.tier}] ${name} 획득! 장신구/칭호 메뉴에서 착용할 수 있습니다.`;}
+      saveProgress();document.getElementById('titleResultModal').classList.remove('hidden');
+    }
+    document.getElementById('openInventoryBtn').addEventListener('click',()=>openInventory());
+    document.getElementById('closeInventoryBtn').addEventListener('click',()=>document.getElementById('inventoryModal').classList.add('hidden'));
+    document.getElementById('accessoryTabBtn').addEventListener('click',()=>selectInventoryTab('accessory'));
+    document.getElementById('titleTabBtn').addEventListener('click',()=>selectInventoryTab('title'));
+    document.getElementById('titleDrawBtn').addEventListener('click',rollTitle);
+    document.getElementById('openProbabilityBtn').addEventListener('click',()=>{renderProbabilityInfo();document.getElementById('probabilityModal').classList.remove('hidden');});
+    document.getElementById('closeProbabilityBtn').addEventListener('click',()=>document.getElementById('probabilityModal').classList.add('hidden'));
+    document.getElementById('closeTitleResultBtn').addEventListener('click',()=>document.getElementById('titleResultModal').classList.add('hidden'));
 
     // 통통한 졸라맨 객체
     const player = {
@@ -511,7 +738,6 @@
     let windZones = [];
     let checkpoints = [];
     let goalPortal = null;
-    let cityDecor = [];
 
     // [모드 1] 점프 퍼즐 탈출맵 구축 (직관적인 기계 기믹 & 점프 위주)
     function buildEscapeMap() {
@@ -605,6 +831,152 @@
       respawnPlayer(false);
     }
 
+    function registerSpeedrunWin(timeMs) {
+      gameData.wins += 1;
+      if (gameData.bestSpeedrunMs == null || timeMs < gameData.bestSpeedrunMs) gameData.bestSpeedrunMs = timeMs;
+      const unlocked=[];
+      for (const item of ACCESSORY_LIST) {
+        const qualifies=item.group==='speed' ? timeMs/1000<=item.seconds : timeMs/1000>=item.seconds;
+        if(qualifies&&!gameData.accessories.includes(item.id)){gameData.accessories.push(item.id);unlocked.push(item.name);}
+      }
+      saveProgress(); return unlocked;
+    }
+
+    function buildChallengeStage(stage) {
+      const c=gameState.challenge;c.stage=stage;c.stageTime=0;c.slimes=[];c.boxes=[];c.switches=[];c.draggingBox=null;c.chaser=null;c.boss=null;c.cleared=false;
+      platforms=[];springs=[];switches=[];doors=[];crates=[];crumbleBlocks=[];windZones=[];checkpoints=[];goalPortal=null;
+      if(stage===1||stage===3){
+        platforms=[{x:0,y:540,w:1300,h:180},{x:1210,y:425,w:30,h:115}];
+        const hp=stage===1?1:2, size=stage===1?25:34, speed=stage===1?0.45:0.9;
+        c.slimes=[{x:270,y:540-size,w:size*2,h:size,hp,maxHp:hp,baseX:270,minX:170,maxX:500,speed,dir:1,square:false},{x:570,y:540-size,w:size*2,h:size,hp,maxHp:hp,baseX:570,minX:470,maxX:800,speed:speed*0.9,dir:-1,square:stage===3},{x:870,y:540-size,w:size*2,h:size,hp,maxHp:hp,baseX:870,minX:760,maxX:1080,speed:speed*1.1,dir:1,square:stage===3}];
+        player.spawnX=100;player.spawnY=478;
+      }else if(stage===2){
+        platforms=[{x:0,y:540,w:250,h:180},{x:650,y:540,w:580,h:180},{x:720,y:420,w:185,h:20},{x:900,y:290,w:180,h:20},{x:1040,y:190,w:180,h:20}];
+        const box={x:270,y:490,w:140,h:50,vx:0,vy:0};crates=[box];c.boxes=[box];
+        player.spawnX=90;player.spawnY=478;
+      }else if(stage===4){
+        platforms=[{x:0,y:540,w:230,h:180},{x:270,y:445,w:125,h:18,moveX:78,speed:1.2,baseX:270,baseY:445},{x:470,y:350,w:120,h:18},{x:680,y:245,w:120,h:18},{x:865,y:145,w:160,h:18}];
+        crumbleBlocks=[{x:590,y:300,w:68,h:16,state:'solid',timer:0},{x:810,y:194,w:60,h:16,state:'solid',timer:0}];
+        player.spawnX=90;player.spawnY=478;
+      }else if(stage===5){
+        platforms=[{x:0,y:540,w:1400,h:180},{x:1200,y:350,w:35,h:190}];c.doorOpen=false;
+        c.switches=[{x:270,y:540,active:false,timer:0},{x:600,y:540,active:false,timer:0},{x:920,y:540,active:false,timer:0}];
+        player.spawnX=90;player.spawnY=478;
+      }else if(stage===6){
+        platforms=[{x:0,y:540,w:1600,h:180},{x:320,y:455,w:55,h:85},{x:570,y:390,w:60,h:150},{x:825,y:455,w:65,h:85},{x:1200,y:350,w:40,h:190}];
+        c.chaser={x:20,y:495,w:38,h:45,speed:52,still:0,doorOpen:false};
+        player.spawnX=150;player.spawnY=478;
+      }else{
+        platforms=[{x:0,y:540,w:1120,h:180}];
+        c.boss={x:760,y:540,w:86,h:96,hp:10,maxHp:10,pattern:'idle',timer:1.5,vulnerable:0,lastAttackAt:-Infinity,laserX:500,waves:[],attackCount:0};
+        player.spawnX=130;player.spawnY=478;
+      }
+      player.checkpointIndex=stage;respawnPlayer(false);
+      c.stageTime=performance.now();
+      document.getElementById('hudModeBadge').textContent='챌린지';
+      document.getElementById('hudSubInfo').textContent=`${stage}단계 / 7 · ${['','느린 슬라임','박스 퍼즐','네모 슬라임','움직이는 발판','버튼과 문','추격전','보스전'][stage]}`;
+      document.getElementById('touchAttack').classList.toggle('hidden',stage<5);
+      gameState.camera.x=player.x-width*0.35;gameState.camera.y=player.y-height*0.55;
+    }
+
+    function advanceChallenge() {
+      if(gameState.challenge.stage<7){buildChallengeStage(gameState.challenge.stage+1);sfx.checkpoint();}
+    }
+
+    function handleChallengePointerDown(e) {
+      const worldX=e.clientX+gameState.camera.x, worldY=e.clientY+gameState.camera.y, c=gameState.challenge;
+      if(c.stage===1||c.stage===3){
+        const slime=c.slimes.find(s=>s.hp>0&&worldX>=s.x-8&&worldX<=s.x+s.w+8&&worldY>=s.y-10&&worldY<=s.y+s.h+10);
+        if(slime){slime.hp--;sfx.interact();spawnParticles(slime.x+slime.w/2,slime.y,6,'dust');if(slime.hp<=0)addFloatingText(slime.x,slime.y-10,'처치!');return true;}
+      }
+      if(c.stage===2){const box=c.boxes.find(b=>worldX>=b.x&&worldX<=b.x+b.w&&worldY>=b.y&&worldY<=b.y+b.h);if(box){c.draggingBox={box,offsetX:worldX-box.x,offsetY:worldY-box.y,pointerId:e.pointerId};if(canvas.setPointerCapture&&e.pointerId!=null)canvas.setPointerCapture(e.pointerId);return true;}}
+      if(c.stage===7&&c.boss&&Math.abs(worldX-(c.boss.x+c.boss.w/2))<100&&worldY>c.boss.y-150){keys.attackPressed=true;return true;}
+      return false;
+    }
+    function handleChallengePointerMove(e) {
+      const drag=gameState.challenge.draggingBox;if(!drag)return;
+      drag.box.x=Math.max(250,Math.min(1080,e.clientX+gameState.camera.x-drag.offsetX));drag.box.y=Math.max(150,Math.min(490,e.clientY+gameState.camera.y-drag.offsetY));drag.box.vx=drag.box.vy=0;
+    }
+
+    function updateChallenge(dt) {
+      const c=gameState.challenge,realDt=dt/SIMULATION_SPEED;c.elapsedMs=performance.now()-c.startTime;c.stageTime+=realDt;
+      document.getElementById('timerDisplay').textContent=formatRecord(c.elapsedMs);
+      if(c.stage===1||c.stage===3){
+        for(const slime of c.slimes){if(slime.hp<=0)continue;slime.x+=slime.dir*slime.speed*(realDt*60);if(slime.x<slime.minX){slime.x=slime.minX;slime.dir=1;}if(slime.x>slime.maxX){slime.x=slime.maxX;slime.dir=-1;}}
+        const clear=c.slimes.every(s=>s.hp<=0);if(clear)platforms=platforms.filter(p=>p.x!==1210);if(clear&&player.x>1170)advanceChallenge();
+      }else if(c.stage===2){
+        if(player.y<220&&player.x>930&&c.boxes.some(b=>b.x>330&&b.y<460))advanceChallenge();
+        if(player.y>760)respawnPlayer(true);
+      }else if(c.stage===4){
+        if(player.y>760){respawnPlayer(true);addFloatingText(player.x,player.y-20,'4단계 시작 위치로 복귀');}
+        if(player.y<65&&player.x>830)advanceChallenge();
+      }else if(c.stage===5){
+        for(const button of c.switches){if(button.active&&performance.now()>=button.activeUntil)button.active=false;}
+        if(keys.attackPressed){const button=c.switches.find(b=>Math.abs(player.x+player.w/2-b.x)<48&&Math.abs(player.y+player.h-b.y)<70);if(button){button.active=true;button.activeUntil=performance.now()+7000;sfx.switchClick();}}
+        const allActive=c.switches.every(b=>b.active);if(allActive!==c.doorOpen){c.doorOpen=allActive;if(c.doorOpen)platforms=platforms.filter(p=>p.x!==1200);else platforms.push({x:1200,y:350,w:35,h:190});}
+        if(c.doorOpen&&player.x>1320)advanceChallenge();
+      }else if(c.stage===6){
+        const chaser=c.chaser; if(Math.abs(player.vx)<0.5)chaser.still+=realDt;else chaser.still=Math.max(0,chaser.still-realDt*0.8);
+        chaser.x+=Math.min(190,chaser.speed+chaser.still*32)*realDt;chaser.y=540-chaser.h;
+        if(player.x-chaser.x<16){respawnPlayer(true);chaser.x=Math.max(0,player.x-170);chaser.still=0;addFloatingText(player.x,player.y-20,'추격자에게 잡혔다! 다시 달려!');}
+        if(keys.attackPressed&&Math.abs(player.x-1100)<90){chaser.doorOpen=true;platforms=platforms.filter(p=>p.x!==1200);}
+        if(chaser.doorOpen&&player.x>1510)advanceChallenge();
+      }else if(c.stage===7){updateBoss(dt);}
+      keys.attackPressed=false;
+    }
+
+    function updateBoss(dt) {
+      const boss=gameState.challenge.boss;if(!boss)return;dt/=SIMULATION_SPEED;
+      boss.vulnerable=Math.max(0,boss.vulnerable-dt);boss.timer-=dt;
+      if(boss.pattern==='idle'&&boss.timer<=0){
+        boss.pattern=Math.random()<0.52?'laserWarn':'quakeWarn';boss.timer=0.8;
+        if(boss.pattern==='laserWarn')boss.laserX=Math.max(50,Math.min(1050,player.x+player.w/2+(Math.random()-0.5)*180));
+      }else if(boss.pattern==='laserWarn'&&boss.timer<=0){boss.pattern='laser';boss.timer=0.38;if(Math.abs(player.x+player.w/2-boss.laserX)<48&&player.y+player.h>490)respawnPlayer(true);}
+      else if(boss.pattern==='laser'&&boss.timer<=0){boss.pattern='idle';boss.timer=0.9;boss.vulnerable=1.5;}
+      else if(boss.pattern==='quakeWarn'&&boss.timer<=0){boss.pattern='quake';boss.timer=1.25;boss.waves=[{x:boss.x+boss.w/2,dir:-1},{x:boss.x+boss.w/2,dir:1}];}
+      else if(boss.pattern==='quake'){
+        for(const wave of boss.waves){wave.x+=wave.dir*390*dt;if(player.grounded&&Math.abs(wave.x-(player.x+player.w/2))<25)respawnPlayer(true);}
+        boss.waves=boss.waves.filter(w=>w.x>-80&&w.x<1200);
+        if(boss.timer<=0||!boss.waves.length){boss.pattern='idle';boss.timer=0.45;boss.vulnerable=1.5;}
+      }
+      if(keys.attackPressed&&performance.now()-boss.lastAttackAt>=500){
+        boss.lastAttackAt=performance.now();
+        if(boss.vulnerable>0&&Math.abs((player.x+player.w/2)-(boss.x+boss.w/2))<145){boss.hp--;sfx.score();spawnParticles(boss.x+boss.w/2,boss.y-25,8,'star');addFloatingText(boss.x,boss.y-50,`명중! HP ${boss.hp}`);if(boss.hp<=0)completeChallenge();}
+        else addFloatingText(player.x,player.y-25,'공격 틈을 기다려!');
+      }
+    }
+
+    function completeChallenge() {
+      const c=gameState.challenge;c.cleared=true;const time=performance.now()-c.startTime;gameData.challengeRuns++;
+      if(gameData.challengeBestMs==null||time<gameData.challengeBestMs)gameData.challengeBestMs=time;
+      saveProgress();document.getElementById('challengeResultTime').textContent=`TIME ${formatRecord(time)}`;
+      document.getElementById('challengeBestTime').textContent=`BEST ${formatRecord(gameData.challengeBestMs)}`;
+      document.getElementById('challengeResultModal').classList.remove('hidden');sfx.victory();
+    }
+
+    function drawChallengeEntities() {
+      const c=gameState.challenge;ctx.save();ctx.textAlign='center';ctx.fillStyle='#111111';ctx.font='bold 15px "Noto Sans KR"';
+      const labels={1:'슬라임을 눌러 처치하고 오른쪽 문으로 가세요',2:'상자를 끌어 발판을 만들고 위쪽 출구로!',3:'네모 슬라임은 두 번 눌러야 처치됩니다',4:'움직이는 발판을 타고 위쪽 출구로!',5:'E 또는 공격 버튼으로 세 버튼을 빠르게 켜세요',6:'달려가 마지막 버튼을 누르고 문을 통과하세요',7:'레이저와 지진을 피하고 공격 틈에 보스를 때리세요'};
+      ctx.fillText(labels[c.stage]||'',player.x+160,player.y-25);
+      // Stage spawn marker doubles as the visible checkpoint for challenge respawns.
+      ctx.save();ctx.strokeStyle='#111111';ctx.fillStyle='#ffffff';ctx.lineWidth=3;
+      ctx.beginPath();ctx.moveTo(player.spawnX+player.w/2,540);ctx.lineTo(player.spawnX+player.w/2,492);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(player.spawnX+player.w/2,493);ctx.lineTo(player.spawnX+player.w/2+30,502);ctx.lineTo(player.spawnX+player.w/2,512);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.font='bold 11px "Noto Sans KR"';ctx.textAlign='center';ctx.fillStyle='#111111';ctx.fillText('START',player.spawnX+player.w/2+14,485);ctx.restore();
+      for(const slime of c.slimes){if(slime.hp<=0)continue;ctx.fillStyle=slime.square?'#555555':'#111111';ctx.strokeStyle='#111111';ctx.lineWidth=2;ctx.beginPath();if(slime.square)ctx.rect(slime.x,slime.y,slime.w,slime.h);else ctx.roundRect(slime.x,slime.y,slime.w,slime.h,slime.w/2);ctx.fill();ctx.stroke();ctx.fillStyle='#ffffff';ctx.fillRect(slime.x+slime.w*.28,slime.y+slime.h*.38,4,4);ctx.fillRect(slime.x+slime.w*.68,slime.y+slime.h*.38,4,4);ctx.fillStyle='#111111';if(slime.maxHp>1)ctx.fillText(`HP ${slime.hp}`,slime.x+slime.w/2,slime.y-8);}
+      if(c.stage===1||c.stage===3){ctx.fillStyle='#111111';ctx.fillRect(1210,425,30,115);ctx.fillStyle='#ffffff';ctx.fillText(c.slimes.every(s=>s.hp<=0)?'OPEN':'LOCK',1225,415);}
+      if(c.stage===5){for(let i=0;i<c.switches.length;i++){const b=c.switches[i];ctx.fillStyle=b.active?'#111111':'#ffffff';ctx.strokeStyle='#111111';ctx.lineWidth=3;ctx.fillRect(b.x-24,520,48,20);ctx.strokeRect(b.x-24,520,48,20);ctx.fillStyle=b.active?'#ffffff':'#111111';ctx.fillText(b.active?`${Math.max(0,(b.activeUntil-performance.now())/1000).toFixed(1)}s`:`버튼 ${i+1}`,b.x,505);}ctx.fillStyle=c.doorOpen?'#aaaaaa':'#111111';ctx.fillRect(1200,350,35,190);ctx.fillStyle=c.doorOpen?'#111111':'#ffffff';ctx.fillText(c.doorOpen?'OPEN':'DOOR',1218,340);}
+      if(c.stage===6&&c.chaser){ctx.fillStyle='#111111';ctx.beginPath();ctx.roundRect(c.chaser.x,c.chaser.y,c.chaser.w,c.chaser.h,8);ctx.fill();ctx.fillStyle='#ffffff';ctx.fillRect(c.chaser.x+8,c.chaser.y+12,5,5);ctx.fillRect(c.chaser.x+24,c.chaser.y+12,5,5);if(!c.chaser.doorOpen){ctx.fillStyle='#111111';ctx.fillRect(1180,350,40,190);}else{ctx.fillStyle='#111111';ctx.fillRect(1084,500,32,18);ctx.fillStyle='#ffffff';ctx.fillText('OPEN',1100,490);}}
+      if(c.stage===7&&c.boss){const b=c.boss;ctx.fillStyle='#111111';ctx.beginPath();ctx.roundRect(b.x,b.y-b.h,b.w,b.h,18);ctx.fill();ctx.fillStyle='#ffffff';ctx.fillRect(b.x+20,b.y-b.h+24,10,10);ctx.fillRect(b.x+56,b.y-b.h+24,10,10);ctx.fillStyle='#111111';ctx.fillText(`BOSS HP ${b.hp}/10`,b.x+b.w/2,b.y-b.h-15);
+        if(b.pattern==='laserWarn'){ctx.fillStyle='rgba(255,0,0,.22)';ctx.fillRect(b.laserX-28,0,56,540);ctx.strokeStyle='#dd2222';ctx.setLineDash([8,6]);ctx.strokeRect(b.laserX-28,0,56,540);ctx.setLineDash([]);}
+        if(b.pattern==='laser'){ctx.fillStyle='#111111';ctx.fillRect(b.laserX-22,0,44,540);}
+        if(b.pattern==='quakeWarn'){ctx.strokeStyle='#111111';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(gameState.camera.x,536);ctx.lineTo(gameState.camera.x+width,536);ctx.stroke();}
+        for(const wave of b.waves){ctx.fillStyle='#111111';ctx.beginPath();ctx.ellipse(wave.x,536,22,7,0,0,Math.PI*2);ctx.fill();}
+        if(b.vulnerable>0){ctx.fillStyle='#111111';ctx.fillText('공격 기회!',b.x+b.w/2,b.y-b.h-34);}
+      }
+      ctx.restore();
+    }
+
     function respawnPlayer(playSound = true) {
       player.x = player.spawnX;
       player.y = player.spawnY;
@@ -641,14 +1013,15 @@
     function update(dt) {
       if (!gameState.mode) return;
 
-      // 탈출맵 타이머 갱신
-      if (!gameState.escapeFinished) {
-        gameState.escapeElapsedMs = performance.now() - gameState.escapeStartTime;
-        document.getElementById('timerDisplay').textContent = formatEscapeTime(gameState.escapeElapsedMs);
+      // 챌린지 시간은 챌린지 모드만 갱신합니다. 점프 탈출 시간은 RAF 표시 루프에서 별도로 측정합니다.
+      if (gameState.mode === 'challenge' && !gameState.challenge.cleared) {
+        gameState.challenge.elapsedMs = performance.now() - gameState.challenge.startTime;
+        document.getElementById('timerDisplay').textContent = formatRecord(gameState.challenge.elapsedMs);
       }
 
       // 1) 움직이는 발판 업데이트
       for (const p of platforms) {
+        const prevY = p.y;
         if (p.moveX) {
           const prevX = p.x;
           p.x = p.baseX + Math.sin(performance.now() * 0.002 * p.speed) * p.moveX;
@@ -656,6 +1029,8 @@
         } else {
           p.dx = 0;
         }
+        if (p.moveY) p.y = p.baseY + Math.sin(performance.now() * 0.0015 * (p.speedY || p.speed || 1)) * p.moveY;
+        p.dy = p.y - prevY;
       }
 
       // 2) 사라졌다 생기는 발판 업데이트
@@ -741,6 +1116,7 @@
 
       // 6) 상자 물리 & 밀기
       for (const c of crates) {
+        if (gameState.mode === 'challenge' && gameState.challenge.stage === 2) continue;
         c.vy += gravity;
         c.x += c.vx;
         c.vx *= 0.8;
@@ -814,6 +1190,7 @@
             player.grounded = true;
             // 움직이는 발판 탑승 시 같이 이동
             if (p.dx) player.x += p.dx;
+            if (p.dy) player.y += p.dy;
           } else if (player.vy < 0) {
             player.y = p.y + p.h;
             player.vy = 0;
@@ -914,15 +1291,22 @@
 
         // 최종 탈출 골인!
         if (goalPortal && !gameState.escapeFinished && aabb(player, goalPortal)) {
+          gameState.escapeElapsedMs = getEscapeElapsedMs();
           gameState.escapeFinished = true;
+          document.getElementById('timerDisplay').textContent = formatEscapeTime(gameState.escapeElapsedMs);
           sfx.victory();
           spawnParticles(goalPortal.x + 34, goalPortal.y + 50, 25, 'star');
           document.getElementById('finalTimeText').textContent = formatEscapeTime(gameState.escapeElapsedMs);
+          const gained=registerSpeedrunWin(gameState.escapeElapsedMs);
+          document.getElementById('unlockNotice').textContent=`승리 ${gameData.wins} · ${gained.length?`해금: ${gained.join(', ')}`:'새 장신구 해금 없음'}`;
           setTimeout(() => {
             document.getElementById('victoryModal').classList.remove('hidden');
           }, 400);
         }
       }
+
+      if (gameState.mode === 'challenge' && !gameState.challenge.cleared) updateChallenge(dt);
+      keys.attackPressed = false;
 
       // 13) 캐릭터 애니메이션 보간 (스쿼시 & 스트레치, 걷기, 통통한 배 흔들림)
       player.scaleX += (1 - player.scaleX) * 0.18;
@@ -1121,8 +1505,14 @@
       ctx.arc(eyeOffsetX + 4.5, headCenterY - 1.5, 2.1, 0, Math.PI * 2);
       ctx.fill();
 
-      const accessory = ACCESSORIES[selectedAccessory];
-      if (accessory && accessory.draw) accessory.draw(ctx, headCenterY);
+      const equipped = ACCESSORY_LIST.find(item => item.id === gameData.equippedAccessory);
+      const accessoryImage = getAccessoryImage(equipped);
+      if (equipped && accessoryImage) {
+        const y = equipped.anchor === 'beard'
+          ? headCenterY + (equipped.id.startsWith('11_') ? 2 : 8)
+          : headCenterY - equipped.h + 6;
+        ctx.drawImage(accessoryImage, -equipped.w / 2, y, equipped.w, equipped.h);
+      }
 
       ctx.restore();
     }
@@ -1283,6 +1673,7 @@
       ctx.translate(-Math.round(gameState.camera.x), -Math.round(gameState.camera.y));
 
       // 모드별 배경/기믹 요소
+      // Shared level props (including moving and breakable platforms) are used in both modes.
       drawEscapeElements();
 
       // 기본 발판 렌더링
@@ -1323,8 +1714,11 @@
         ctx.stroke();
       }
 
+      if (gameState.mode === 'challenge') drawChallengeEntities();
+
       // 주인공 통통한 졸라맨 그리기
       drawChubbyStickman();
+      drawTitle();
 
       // 파티클 그리기
       for (const pt of gameState.particles) {
@@ -1378,37 +1772,57 @@
         update(FIXED_STEP);
         simulationAccumulator -= FIXED_STEP;
       }
+      if(gameState.mode==='escape'&&!gameState.escapeFinished){
+        gameState.escapeElapsedMs=getEscapeElapsedMs();
+        document.getElementById('timerDisplay').textContent=formatEscapeTime(gameState.escapeElapsedMs);
+      }
       render();
       requestAnimationFrame(gameLoop);
     }
 
-    function startGameMode() {
+    function startGameMode(mode='escape') {
+      // DOM click listeners pass a MouseEvent as the first argument; never use it as the mode name.
+      if(mode!=='challenge')mode='escape';
       sfx.init();
       sfx.switchClick();
-      gameState.mode = 'escape';
+      gameState.mode = mode;
       gameState.particles = [];
       gameState.floatingTexts = [];
 
       document.getElementById('mainMenu').classList.add('hidden');
       document.getElementById('victoryModal').classList.add('hidden');
+      document.getElementById('challengeResultModal').classList.add('hidden');
       document.getElementById('hud').classList.remove('hidden');
       document.getElementById('touchControls').classList.remove('hidden');
+      document.getElementById('touchAttack').classList.add('hidden');
 
-      gameState.escapeStartTime = performance.now();
+      gameState.escapeStartTime = 0;
       gameState.escapeElapsedMs = 0;
       gameState.escapeFinished = false;
-      buildEscapeMap();
-
-      document.getElementById('hudModeBadge').textContent = '점프 탈출맵';
-      document.getElementById('hudSubInfo').textContent = `구간 1 / ${checkpoints.length}`;
+      gameState.escapePausedAt = null;
+      gameState.escapePausedTotalMs = 0;
+      if(mode==='challenge'){
+        document.getElementById('timerTitle').textContent='⏱️ 챌린지 경과 시간';
+        gameState.challenge={stage:1,startTime:performance.now(),elapsedMs:0,stageTime:0,slimes:[],boxes:[],switches:[],platforms:[],chaser:null,boss:null,draggingBox:null,cleared:false};
+        buildChallengeStage(1);
+      }else{
+        document.getElementById('timerTitle').textContent='⏱️ 탈출 경과 시간';
+        buildEscapeMap();
+        gameState.escapeStartTime=performance.now();
+        document.getElementById('timerDisplay').textContent=formatEscapeTime(0);
+        document.getElementById('hudModeBadge').textContent='점프 탈출맵';
+        document.getElementById('hudSubInfo').textContent=`구간 1 / ${checkpoints.length}`;
+      }
       document.getElementById('escapeTimerBox').classList.remove('hidden');
 
       gameState.camera.x = player.x - width * 0.4;
       gameState.camera.y = player.y - height * 0.55;
     }
 
-    document.getElementById('startEscapeBtn').addEventListener('click', startGameMode);
-    document.getElementById('btnRetryEscape').addEventListener('click', startGameMode);
+    document.getElementById('startEscapeBtn').addEventListener('click',()=>startGameMode('escape'));
+    document.getElementById('startChallengeBtn').addEventListener('click',()=>startGameMode('challenge'));
+    document.getElementById('btnRetryEscape').addEventListener('click',()=>startGameMode('escape'));
+    document.getElementById('challengeMenuBtn').addEventListener('click',returnToMenu);
     document.getElementById('btnCaptureClear').addEventListener('click', () => {
       const capture = document.createElement('canvas');
       capture.width = canvas.width;
@@ -1449,7 +1863,11 @@
       document.getElementById('hud').classList.add('hidden');
       document.getElementById('touchControls').classList.add('hidden');
       document.getElementById('victoryModal').classList.add('hidden');
+      document.getElementById('challengeResultModal').classList.add('hidden');
+      document.getElementById('inventoryModal').classList.add('hidden');
+      document.getElementById('titleResultModal').classList.add('hidden');
       document.getElementById('mainMenu').classList.remove('hidden');
+      syncMenuStats();
     }
     document.getElementById('btnMenu').addEventListener('click', returnToMenu);
     document.getElementById('btnVictoryMenu').addEventListener('click', returnToMenu);
@@ -1463,6 +1881,8 @@
       e.currentTarget.textContent = sfx.muted ? '🔇' : '🔊';
       if (!sfx.muted) sfx.switchClick();
     });
+
+    syncMenuStats();
 
     window.onload = function () {
       requestAnimationFrame(gameLoop);
