@@ -299,6 +299,7 @@
       <div class="text-5xl mb-2">🏆</div><h2 class="font-jua text-3xl font-black mb-3">CHALLENGE CLEAR!</h2>
       <div id="challengeResultTime" class="font-jua text-2xl mb-1"></div>
       <div id="challengeBestTime" class="font-jua text-xl mb-5"></div>
+      <div id="challengeRewardText" class="font-jua text-xl font-black mb-5 text-amber-700">+10 승리</div>
       <button id="challengeMenuBtn" class="ink-btn-dark w-full py-3 font-bold">메뉴로</button>
     </div>
   </div>
@@ -541,6 +542,11 @@
       {tier:'????',weight:0.2,names:['빈털터리 거지의 품격 궁핍한 낭만 잔액은 없지만 자존심은 남아 초라한 인생에도 영광은 피어나고 가난한 청춘은 오늘도 품격을 지킨다']}
     ];
     const TITLE_BY_NAME = new Map(TITLE_LIST.flatMap(group => group.names.map(name => [name,{name,tier:group.tier}])));
+    const TITLE_TIER_COLORS = {'일반':'#6b7280','희귀':'#2563eb','영웅':'#7c3aed','전설':'#d97706','신화':'#e11d48','극악':'#7f1d1d','????':'#b8860b'};
+    function titleTierColor(tierOrTitle) {
+      const tier=TITLE_BY_NAME.get(tierOrTitle)?.tier||tierOrTitle;
+      return TITLE_TIER_COLORS[tier]||'#111111';
+    }
     const SAVE_KEY = 'stickman-speedrun-save-v3';
     const DEFAULT_DATA = { wins:0, titles:[], equippedTitle:null, accessories:[], equippedAccessory:null, bestSpeedrunMs:null, challengeBestMs:null, challengeRuns:0 };
     function freshProgress() { return { ...DEFAULT_DATA, titles:[], accessories:[] }; }
@@ -583,8 +589,15 @@
           }
           asset.ready=true;
         };
-        image.onerror = () => { asset.canvas=null; asset.ready=true; };
-        image.src=`assets/accessories/${item.file}`; accessoryAssets.set(item.id,asset);
+        const assetPath=`assets/accessories/${encodeURIComponent(item.file)}`;
+        const relativeUrl=new URL(assetPath,document.baseURI).href;
+        const rootUrl=new URL(`/assets/accessories/${encodeURIComponent(item.file)}`,document.baseURI).href;
+        let triedRoot=false;
+        image.onerror = () => {
+          if(!triedRoot&&relativeUrl!==rootUrl){triedRoot=true;image.src=rootUrl;return;}
+          asset.canvas=null;asset.ready=true;
+        };
+        image.src=relativeUrl; accessoryAssets.set(item.id,asset);
       }
       const asset=accessoryAssets.get(item.id); return asset.ready?asset.canvas:null;
     }
@@ -593,7 +606,8 @@
       const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};
       set('winsText',gameData.wins); set('menuBestText',formatRecord(gameData.bestSpeedrunMs));
       set('menuChallengeBestText',formatRecord(gameData.challengeBestMs));
-      set('equippedTitleText',gameData.equippedTitle||'없음');
+      const equippedTitle=document.getElementById('equippedTitleText');
+      if(equippedTitle){equippedTitle.textContent=gameData.equippedTitle||'없음';equippedTitle.style.color=titleTierColor(gameData.equippedTitle);}
       const draw=document.getElementById('titleDrawBtn'); if(draw){draw.disabled=gameData.wins<2;draw.classList.toggle('opacity-50',draw.disabled);}
     }
     function makeCardButton(parent, title, detail, buttonText, onClick, options={}) {
@@ -601,6 +615,7 @@
       if(options.image){const img=document.createElement('img');img.src=options.image;img.alt=title;img.loading='lazy';card.appendChild(img);}
       const info=document.createElement('div'); info.className='flex-1 min-w-0';
       const heading=document.createElement('div');heading.className='font-bold text-sm';heading.textContent=title;info.appendChild(heading);
+      if(options.titleColor)heading.style.color=options.titleColor;
       const sub=document.createElement('div');sub.className='text-xs text-neutral-600';sub.textContent=detail;info.appendChild(sub);card.appendChild(info);
       if(buttonText){const button=document.createElement('button');button.className=options.disabled?'ink-btn px-2 py-1 text-xs font-bold opacity-50':'ink-btn-dark px-2 py-1 text-xs font-bold';button.textContent=buttonText;button.disabled=!!options.disabled;button.addEventListener('click',onClick);card.appendChild(button);}
       parent.appendChild(card);
@@ -611,7 +626,7 @@
       for(const item of ACCESSORY_LIST){const unlocked=gameData.accessories.includes(item.id);makeCardButton(accessories,item.name,`${item.condition} · ${unlocked?'해금':'잠김'}`,unlocked?(gameData.equippedAccessory===item.id?'착용 중':'착용'):'잠김',()=>{gameData.equippedAccessory=item.id;getAccessoryImage(item);saveProgress();renderInventory();},{image:item.group?`assets/accessories/${item.file}`:null,disabled:!unlocked||gameData.equippedAccessory===item.id});}
       const titles=document.getElementById('titleInventory');titles.replaceChildren();
       makeCardButton(titles,'칭호 없음','머리 위에 칭호를 표시하지 않습니다.',gameData.equippedTitle===null?'착용 중':'착용',()=>{gameData.equippedTitle=null;saveProgress();renderInventory();},{disabled:gameData.equippedTitle===null});
-      for(const name of gameData.titles){const info=TITLE_BY_NAME.get(name)||{tier:'기타'};makeCardButton(titles,`[${info.tier}] ${name}`,'획득한 칭호',gameData.equippedTitle===name?'착용 중':'착용',()=>{gameData.equippedTitle=name;saveProgress();renderInventory();},{disabled:gameData.equippedTitle===name});}
+      for(const name of gameData.titles){const info=TITLE_BY_NAME.get(name)||{tier:'기타'};makeCardButton(titles,`[${info.tier}] ${name}`,'획득한 칭호',gameData.equippedTitle===name?'착용 중':'착용',()=>{gameData.equippedTitle=name;saveProgress();renderInventory();},{disabled:gameData.equippedTitle===name,titleColor:titleTierColor(info.tier)});}
     }
     function openInventory(tab='accessory') { renderInventory(); document.getElementById('inventoryModal').classList.remove('hidden'); selectInventoryTab(tab); }
     function selectInventoryTab(tab) {
@@ -625,7 +640,7 @@
       const rows=document.getElementById('titleProbabilityRows');rows.replaceChildren();
       for(const tier of TITLE_LIST){
         const row=document.createElement('tr');row.className='border-b border-neutral-200';
-        const name=document.createElement('td');name.className='p-2';name.textContent=tier.tier;
+        const name=document.createElement('td');name.className='p-2 font-bold';name.textContent=tier.tier;name.style.color=titleTierColor(tier.tier);
         const chance=document.createElement('td');chance.className='p-2 text-right';chance.textContent=`${tier.weight}%`;
         row.append(name,chance);rows.appendChild(row);
       }
@@ -655,15 +670,16 @@
       }
       const boxX=x-boxW/2,boxY=titleBottom-boxH;
       ctx.fillStyle='rgba(255,255,255,0.96)';ctx.strokeStyle='#111111';ctx.lineWidth=2;
-      ctx.beginPath();ctx.roundRect(boxX,boxY,boxW,boxH,7);ctx.fill();ctx.stroke();ctx.fillStyle='#111111';ctx.textAlign='center';
+      ctx.beginPath();ctx.roundRect(boxX,boxY,boxW,boxH,7);ctx.fill();ctx.stroke();ctx.fillStyle=titleTierColor(gameData.equippedTitle);ctx.textAlign='center';
       lines.forEach((text,index)=>ctx.fillText(text,x,boxY+pad+10+index*lineHeight));ctx.restore();
     }
     function rollTitle() {
       const result=document.getElementById('titleResultText');
-      if(gameData.wins<2){result.textContent='칭호 뽑기에는 승리 2가 필요합니다.';document.getElementById('titleResultModal').classList.remove('hidden');return;}
+      if(gameData.wins<2){result.textContent='칭호 뽑기에는 승리 2가 필요합니다.';result.style.color='#111111';document.getElementById('titleResultModal').classList.remove('hidden');return;}
       gameData.wins-=2;const total=TITLE_LIST.reduce((sum,t)=>sum+t.weight,0);let roll=Math.random()*total;let tier=TITLE_LIST.at(-1);
       for(const candidate of TITLE_LIST){roll-=candidate.weight;if(roll<0){tier=candidate;break;}}
       const name=tier.names[Math.floor(Math.random()*tier.names.length)];
+      result.style.color=titleTierColor(tier.tier);
       if(gameData.titles.includes(name)){gameData.wins+=1;result.textContent=`[${tier.tier}] ${name} 중복! 보상으로 승리 1을 돌려받았습니다.`;}
       else{gameData.titles.push(name);result.textContent=`[${tier.tier}] ${name} 획득! 장신구/칭호 메뉴에서 착용할 수 있습니다.`;}
       saveProgress();document.getElementById('titleResultModal').classList.remove('hidden');
@@ -947,10 +963,11 @@
     }
 
     function completeChallenge() {
-      const c=gameState.challenge;c.cleared=true;const time=performance.now()-c.startTime;gameData.challengeRuns++;
+      const c=gameState.challenge;if(c.cleared)return;c.cleared=true;const time=performance.now()-c.startTime;gameData.challengeRuns++;gameData.wins+=10;
       if(gameData.challengeBestMs==null||time<gameData.challengeBestMs)gameData.challengeBestMs=time;
       saveProgress();document.getElementById('challengeResultTime').textContent=`TIME ${formatRecord(time)}`;
       document.getElementById('challengeBestTime').textContent=`BEST ${formatRecord(gameData.challengeBestMs)}`;
+      document.getElementById('challengeRewardText').textContent='+10 승리';
       document.getElementById('challengeResultModal').classList.remove('hidden');sfx.victory();
     }
 
